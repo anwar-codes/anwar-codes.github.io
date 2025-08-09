@@ -4,18 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
   <title>Rhythm Hero Lite</title>
-  <meta name="theme-color" content="#0b0e14">
   <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0b0e14">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header id="topbar">
-    <button id="togglePanel" aria-expanded="true" aria-controls="ui">☰</button>
-    <h1>Rhythm Hero Lite</h1>
-    <div id="statusDot" title="Status"></div>
+    <button id="togglePanel" aria-label="Toggle Panel">☰</button>
+    <h1>Rhythm Hero Lite <small id="statusDot" class="st-bad">●</small><small id="fileName"></small></h1>
   </header>
 
-  <div id="ui" data-open="true">
+  <section id="panel" class="open">
     <div class="controls">
       <label class="file">
         <input type="file" id="fileInput" accept=".mp3,.wav,.ogg,audio/mpeg,audio/*">
@@ -25,59 +24,20 @@
       <button id="playBtn" disabled>Mainkan</button>
       <button id="pauseBtn" disabled>Jeda</button>
       <button id="restartBtn" disabled>Ulang</button>
-    </div>
-    <div class="row">
-      <label class="chip">Offset ms
+      <label class="latency">
+        Offset ms:
         <input type="number" id="latencyInput" value="0" step="5">
       </label>
-      <label class="chip">Kecepatan
+      <label class="speed">
+        Kecepatan:
         <input type="range" id="speedInput" min="0.6" max="1.8" step="0.05" value="1.0">
         <span id="speedVal">1.0x</span>
       </label>
-      <button id="calibrateBtn" class="chip">Kalibrasi</button>
-      <label class="chip">Kesulitan
-        <select id="diffSel">
-          <option value="easy">Easy</option>
-          <option value="normal" selected>Normal</option>
-          <option value="hard">Hard</option>
-        </select>
-      </label>
+      <button id="calibrateBtn">Kalibrasi Otomatis</button>
     </div>
-    <div class="row stats">
-      <span>Skor: <b id="score">0</b></span>
-      <span>Combo: <b id="combo">0</b></span>
-      <span>Akurasi: <b id="acc">0%</b></span>
-      <span>BPM: <b id="bpm">-</b></span>
-      <span>Sisa Not: <b id="noteCount">0</b></span>
-      <span id="fileName"></span>
-    </div>
-    <div class="row sfx">
-      <label class="file small">
-        <input type="file" id="hitSfxInput" accept=".mp3,.wav,.ogg,audio/mpeg,audio/*">
-        <span>Upload SFX Hit</span>
-      </label>
-      <label class="file small">
-        <input type="file" id="missSfxInput" accept=".mp3,.wav,.ogg,audio/mpeg,audio/*">
-        <span>Upload SFX Miss</span>
-      </label>
-      <label class="chip">Vol Hit
-        <input type="range" id="hitVol" min="0" max="1" step="0.05" value="0.7">
-      </label>
-      <label class="chip">Vol Miss
-        <input type="range" id="missVol" min="0" max="1" step="0.05" value="0.6">
-      </label>
-    </div>
-    <div class="row chartio">
-      <button id="exportBtn">Export Chart</button>
-      <label class="file small">
-        <input type="file" id="importInput" accept="application/json">
-        <span>Import Chart</span>
-      </label>
-    </div>
-    <div class="notice">Jika tombol <b>Analisa & Buat Not</b> masih nonaktif, tap layar sekali untuk mengaktifkan audio (kebijakan otomatisasi audio di mobile).</div>
-  </div>
+  </section>
 
-  <canvas id="game" aria-label="Ritme Canvas"></canvas>
+  <canvas id="game"></canvas>
 
   <div id="touchLanes">
     <button data-lane="0">A</button>
@@ -86,6 +46,11 @@
     <button data-lane="3">F</button>
   </div>
 
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
+    }
+  </script>
   <script src="main.js"></script>
 </body>
 </html>
