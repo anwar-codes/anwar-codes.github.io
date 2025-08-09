@@ -1,9 +1,8 @@
-# Rhythm Hero Lite — v5.6 (iOS robust click fix)
-Perubahan utama agar tombol benar-benar bisa diklik di iOS Chrome:
-- Listener dipasang setelah DOM siap, plus **fallback inline `onclick`** untuk tombol penting (Toggle Panel & Analyze).
-- Gunakan **`pointerdown` + `touchstart` + `click`** (redundan) dengan `{passive:false}` agar `preventDefault()` bekerja.
-- **AudioContext unlock** pada gesture pertama.
-- `pointer-events` dan `z-index` UI dipastikan tidak ketimpa kanvas.
-- Banner error muncul jika inisialisasi JS gagal.
+# Rhythm Hero Lite — v5.7 (Notes Visible)
+Perbaikan:
+- Not sekarang **muncul & bergerak** di area bermain saat Play.
+- Tombol Play aktif setelah Analyze sukses; loop & auto-miss sederhana ditambahkan.
+- Slider Kecepatan mempengaruhi kecepatan scroll.
+- Tetap mempertahankan perbaikan klik iOS dari v5.6 (inline onclick + pointerdown/touchstart).
 
-Jika sudah berfungsi, aku bisa merge fix ini ke **build v5 FULL**.
+Jika sudah oke, aku bisa gabungkan semua perbaikan ini ke build **v5 FULL** komplet.
