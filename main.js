@@ -10,7 +10,7 @@ try{
 
   let audioCtx, buffer=null, selectedFile=null, source=null, musicGain=null;
   let startCtxTime=0, startSongTime=0, pausedAt=0, gameState='idle';
-  let notes=[];
+  let notes=[]; let firstNoteTime=0;
 
   const fileInput=$('#fileInput'), analyzeBtn=$('#analyzeBtn'), playBtn=$('#playBtn'), pauseBtn=$('#pauseBtn'), restartBtn=$('#restartBtn');
   const statusDot=$('#statusDot'), fileNameEl=$('#fileName'), togglePanelBtn=$('#togglePanel'), panel=$('#panel');
@@ -72,10 +72,12 @@ try{
       const ab = await selectedFile.arrayBuffer();
       buffer = await decodeArrayBuffer(ab);
       setStatus(true);
-      notes = await generateChart(buffer);
+      notes = (await generateChart(buffer)).sort((a,b)=>a.t-b.t);
+      firstNoteTime = notes.length? notes[0].t : 0;
       if (notes.length===0){ alert('Tidak menemukan ketukan. Coba lagu lain.'); }
       playBtn.disabled = notes.length===0;
-      draw(0); // preview: show upcoming notes at t=0 near top
+      draw(0); // preview
+      showHUD();
     }catch(err){
       console.error(err); alert('Gagal membuka audio. Coba MP3/WAV/OGG atau update browser.');
       setAnalyzeEnabled(true); setStatus(false);
@@ -94,7 +96,10 @@ try{
     ensureAudio();
     source = audioCtx.createBufferSource(); musicGain = audioCtx.createGain();
     source.buffer = buffer; source.connect(musicGain).connect(audioCtx.destination);
-    const offset = (gameState==='paused') ? pausedAt : 0;
+
+    const leadIn = Math.max(0, firstNoteTime - 2.0); // start 2s before first note
+    const offset = (gameState==='paused') ? pausedAt : leadIn;
+
     startCtxTime = audioCtx.currentTime; startSongTime = offset;
     source.start(0, offset); source.onended=()=>{ if(gameState==='playing') gameState='ended'; };
     gameState='playing'; playBtn.disabled=true; pauseBtn.disabled=false; restartBtn.disabled=false;
@@ -112,24 +117,25 @@ try{
 
   // ===== Notes rendering & loop =====
   const HIT_WINDOWS={perfect:.10,good:.18};
+
   function draw(t){
     ctx.fillStyle='#0a0a0a'; ctx.fillRect(0,0,W,H);
     const laneW=W/LANES, judgeY=H*JUDGE;
     // lanes
-    for(let i=0;i<LANES;i++){ ctx.fillStyle=['#3b82f6','#22c55e','#eab308','#ef4444'][i]; ctx.globalAlpha=.1; ctx.fillRect(i*laneW,0,laneW,H); }
-    ctx.globalAlpha=1;
+    for(let i=0;i<LANES;i++){ ctx.fillStyle=['#3b82f6','#22c55e','#eab308','#ef4444'][i]+'22'; ctx.fillRect(i*laneW,0,laneW,H); }
     // judge line
-    ctx.strokeStyle='#ffffff40'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(0,judgeY); ctx.lineTo(W,judgeY); ctx.stroke();
+    ctx.strokeStyle='#ffffff66'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(0,judgeY); ctx.lineTo(W,judgeY); ctx.stroke();
     // notes
-    const pxPerSec = 350 * speedMultiplier; const windowAfter=6.0;
-    for (const n of notes){
-      const dtN = n.t - t;
-      if (dtN > windowAfter) break;
+    const pxPerSec = 350 * speedMultiplier; const windowAfter=12.0; // wider lookahead
+    ctx.shadowBlur=0;
+    for (let i=0;i<notes.length;i++){
+      const n=notes[i]; const dtN=n.t - t;
+      if (dtN > windowAfter) break; // sorted
       const y = judgeY - dtN * pxPerSec;
       const x = (n.lane + 0.5) * laneW;
-      const w = laneW*0.68, h = 18;
-      ctx.shadowBlur = Math.abs(y-judgeY)<24 ? 16 : 0;
-      ctx.shadowColor = ['#3b82f6','#22c55e','#eab308','#ef4444'][n.lane];
+      const w = laneW*0.7, h = 20;
+      const near = Math.abs(y-judgeY)<24;
+      if (near){ ctx.shadowBlur = 20; ctx.shadowColor = ['#93c5fd','#86efac','#fde68a','#fca5a5'][n.lane]; } else { ctx.shadowBlur = 0; }
       ctx.fillStyle = ['#3b82f6','#22c55e','#eab308','#ef4444'][n.lane];
       ctx.fillRect(x - w/2, y - h/2, w, h);
     }
@@ -139,7 +145,6 @@ try{
     if (gameState!=='playing') return;
     const t = audioTime();
     draw(t);
-    // auto-miss: prune past notes for simplicity
     for (let i=notes.length-1;i>=0;i--){
       if (notes[i].t < t - HIT_WINDOWS.good) { notes.splice(i,1); }
     }
@@ -162,6 +167,14 @@ try{
     const beat=60/bpm, grid=beat/2, times=[]; let last=-999;
     for(const t of peaks){ const q=Math.round(t/grid)*grid; if(q-last>.08){ times.push(q); last=q; } }
     const dur=buffer.duration; return times.filter(t=>t>.5 && t<dur-.2).map((t,i)=>({t,lane:i%4}));
+  }
+
+  function showHUD(){
+    let hud = document.getElementById('hud');
+    if (!hud) { hud = document.createElement('div'); hud.id='hud'; document.body.appendChild(hud); }
+    const total = notes.length;
+    const first = total? firstNoteTime.toFixed(2) : '-';
+    hud.textContent = `Notes: ${total} | First: ${first}s`;
   }
 
   // Boot

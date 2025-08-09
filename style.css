@@ -16,3 +16,4 @@
 #game{display:block;width:100vw;background:#0a0a0a;touch-action:manipulation;pointer-events:auto}
 #touchLanes{position:fixed;bottom:0;left:0;right:0;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:8px;background:#0b0e14;z-index:30;pointer-events:auto}
 #touchLanes button{height:56px;border:none;border-radius:10px;background:#1f2937;color:#fff;font-size:18px}
+#hud{position:absolute;top:8px;right:10px;background:#0008;padding:6px 8px;border-radius:6px;font-size:12px;z-index:60}
