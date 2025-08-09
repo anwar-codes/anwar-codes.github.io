@@ -4,14 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
   <title>Rhythm Hero Lite</title>
+  <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0b0e14">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="jsError" hidden>Terjadi error JavaScript. Muat ulang halaman.</div>
-
   <header id="topbar">
-    <button id="togglePanel" role="button" tabindex="0" aria-label="Toggle Panel" onclick="window.__togglePanel && window.__togglePanel()">☰</button>
+    <button id="togglePanel" aria-label="Toggle Panel" onclick="window.__togglePanel && window.__togglePanel()">☰</button>
     <h1>Rhythm Hero Lite <small id="statusDot" class="st-bad">●</small><small id="fileName"></small></h1>
   </header>
 
@@ -25,21 +24,62 @@
       <button id="playBtn" disabled>Mainkan</button>
       <button id="pauseBtn" disabled>Jeda</button>
       <button id="restartBtn" disabled>Ulang</button>
+
       <label class="speed">
         Kecepatan:
         <input type="range" id="speedInput" min="0.7" max="1.8" step="0.05" value="1.0">
         <span id="speedVal">1.0x</span>
       </label>
+
       <label class="startfrom">
         Mulai dari:
         <select id="startSel">
-          <option value="lead">Lead-in (−2s sebelum not 1)</option>
+          <option value="firstlead">Not Pertama (−2s)</option>
           <option value="zero">0s (awal lagu)</option>
+          <option value="custom">Kustom…</option>
+        </select>
+        <input id="customStart" type="number" value="0" step="0.1" min="0">s
+      </label>
+      <button id="jumpFirstBtn" disabled>Loncat ke Not Pertama</button>
+
+      <label class="latency">
+        Offset ms:
+        <input type="number" id="latencyInput" value="0" step="5">
+      </label>
+      <button id="calibrateBtn">Kalibrasi</button>
+
+      <label class="diff">Kesulitan:
+        <select id="diffSel">
+          <option value="easy">Easy</option>
+          <option value="normal" selected>Normal</option>
+          <option value="hard">Hard</option>
         </select>
       </label>
-      <button id="audioTestBtn">Tes Audio 🔊</button>
-      <button id="visualTestBtn">Tes Visual 🎯</button>
-      <button id="debugBtn">Debug On/Off</button>
+    </div>
+
+    <div class="sfx">
+      <label class="file small">
+        <input type="file" id="hitSfxInput" accept=".mp3,.wav,.ogg,audio/mpeg,audio/*">
+        <span>Upload SFX Hit</span>
+      </label>
+      <label class="file small">
+        <input type="file" id="missSfxInput" accept=".mp3,.wav,.ogg,audio/mpeg,audio/*">
+        <span>Upload SFX Miss</span>
+      </label>
+      <label class="vol">Vol Hit
+        <input type="range" id="hitVol" min="0" max="1" step="0.05" value="0.7">
+      </label>
+      <label class="vol">Vol Miss
+        <input type="range" id="missVol" min="0" max="1" step="0.05" value="0.6">
+      </label>
+    </div>
+
+    <div class="chartio">
+      <button id="exportBtn">Export Chart</button>
+      <label class="file small">
+        <input type="file" id="importInput" accept="application/json">
+        <span>Import Chart</span>
+      </label>
     </div>
   </section>
 
@@ -54,6 +94,11 @@
 
   <div id="hud" hidden></div>
 
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
+    }
+  </script>
   <script src="main.js" defer></script>
 </body>
 </html>
