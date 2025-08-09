@@ -7,9 +7,15 @@
   <link rel="stylesheet" href="style.css?v=606">
 </head>
 <body>
-  <header id="topbar" role="banner">
-    <h1>Rhythm Hero Lite <small id="statusDot" class="st-bad">●</small><small id="fileName"></small></h1>
-  </header>
+<header id="topbar">
+  <button id="fabToggle"
+          type="button"
+          aria-label="Pengaturan"
+          aria-controls="panel"
+          aria-expanded="false"
+          onclick="RH_togglePanel()">☰</button>
+  <h1>Rhythm Hero Lite <small id="statusDot" class="st-bad">●</small><small id="fileName"></small></h1>
+</header>
 
   <section id="panel" class="collapsed" aria-expanded="false">
     <div class="inner">
