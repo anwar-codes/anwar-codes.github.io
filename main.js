@@ -4,23 +4,21 @@ try{
   const $=s=>document.querySelector(s);
   const on=(el,ev,fn,opt)=>el&&el.addEventListener(ev,fn,opt);
 
-  // Fallbacks
-  window.__togglePanel = ()=>togglePanelClick();
-  window.__analyze = ()=>onAnalyzeClick();
-
-  // ===== Toggle Panel: robust for iOS =====
-  const togglePanelBtn=$('#togglePanel'); const panel=$('#panel');
-  togglePanelBtn?.addEventListener('click', ()=>togglePanelClick());             // simple click
-  togglePanelBtn?.addEventListener('pointerdown', ()=>togglePanelClick(), {passive:true});
-  togglePanelBtn?.addEventListener('touchstart', ()=>togglePanelClick(), {passive:true});
-  togglePanelBtn?.addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); togglePanelClick(); }});
-  function togglePanelClick(){
-    const open = panel.classList.toggle('open');
-    panel.setAttribute('aria-expanded', open?'true':'false');
+  // ===== Native <details> toggle =====
+  const details=$('#panel'), summary=$('#panelSummary');
+  // Default CLOSED unless user previously opened
+  try{
+    const saved = localStorage.getItem('panelOpen');
+    if(saved==='1'){ details.setAttribute('open',''); summary.setAttribute('aria-expanded','true'); }
+    else { details.removeAttribute('open'); summary.setAttribute('aria-expanded','false'); }
+  }catch{}
+  on(details,'toggle',()=>{
+    const open = details.hasAttribute('open');
+    summary.setAttribute('aria-expanded', open?'true':'false');
     try{ localStorage.setItem('panelOpen', open?'1':'0'); }catch{}
-    window.dispatchEvent(new Event('resize')); // update canvas height
-  }
-  try{ if(localStorage.getItem('panelOpen')==='0') panel.classList.remove('open'); }catch{}
+    // trigger layout update for canvas
+    window.dispatchEvent(new Event('resize'));
+  });
 
   // ===== Core game state =====
   let audioCtx, buffer=null, selectedFile=null, source=null, musicGain=null;
@@ -53,11 +51,10 @@ try{
   function setStatus(ok){ statusDot.classList.toggle('st-ok',ok); statusDot.classList.toggle('st-bad',!ok); }
   function setAnalyzeEnabled(v){ analyzeBtn.disabled=!v; analyzeBtn.classList.toggle('pulse',!!v); }
   function resize(){
-    const lanesH=56+8*2; const topbarH=document.getElementById('topbar').offsetHeight; const panelH=panel.classList.contains('open')? panel.scrollHeight : 0;
+    const lanesH=56+8*2; const topbarH=document.getElementById('topbar').offsetHeight; const panelH=details.hasAttribute('open')? details.scrollHeight : 0;
     const avail=Math.max(160, window.innerHeight - (topbarH+panelH+lanesH)); canvas.width=window.innerWidth; canvas.height=Math.round(avail); W=canvas.width; H=canvas.height; draw(0);
   }
   on(window,'resize',resize);
-  function setHUD(){ const st=audioCtx?audioCtx.state:'-'; const dur=buffer?buffer.duration.toFixed(2):'-'; const n=notes.length; const f=notes[0]?notes[0].t.toFixed(2):'-'; hud.hidden=false; hud.textContent=`AC:${st}  dur:${dur}s  notes:${n}  first:${f}s`; }
 
   // ===== File + Analyze =====
   on(fileInput,'change',()=>{
@@ -201,7 +198,7 @@ try{
   // ===== Countdown =====
   const countdown={running:false,start:0};
   function countdownStart(){ countdown.running=true; countdown.start=performance.now()/1000; setTimeout(()=>{countdown.running=false},3200) }
-  function drawCountdown(){ const e=performance.now()/1000 - countdown.start; const r=Math.max(0,3-e); let text=r>2?'3':r>1?'2':r>0?'1':'GO!'; ctx.save(); ctx.fillStyle='#e5e7eb'; ctx.font='bold 48px system-ui,sans-serif'; ctx.textAlign='center'; ctx.fillText(text,W/2,H*.35); ctx.restore() }
+  function drawCountdown(){ const e=performance.now()/1000 - countdown.start; const r=Math.max(0,3-e); let text=r>2?'3':r>1?'2':r>0?'1':'GO!'; const W=canvas.width,H=canvas.height; const ctx=canvas.getContext('2d'); ctx.save(); ctx.fillStyle='#e5e7eb'; ctx.font='bold 48px system-ui,sans-serif'; ctx.textAlign='center'; ctx.fillText(text,W/2,H*.35); ctx.restore() }
 
   // ===== Calibration =====
   const calState={running:false,schedule:[],tapTimes:[],startTime:0};
@@ -210,10 +207,10 @@ try{
   function playClick(atTime,strong=false){ const o=audioCtx.createOscillator(),g=audioCtx.createGain(); o.type='square'; o.frequency.setValueAtTime(strong?1200:900,atTime); g.gain.setValueAtTime(0,atTime); g.gain.linearRampToValueAtTime(strong?.35:.25,atTime+.001); g.gain.exponentialRampToValueAtTime(.0001,atTime+.08); o.connect(g).connect(audioCtx.destination); o.start(atTime); o.stop(atTime+.1) }
   canvas.addEventListener('touchstart',()=>{ if(calState.running) calState.tapTimes.push(audioCtx.currentTime) },{passive:true});
   canvas.addEventListener('mousedown',()=>{ if(calState.running) calState.tapTimes.push(audioCtx.currentTime) });
-  function finishCalibration(){ if(!calState.running) return; calState.running=false; const deltas=[]; for(const tap of calState.tapTimes){ let best=null,be=1e9; for(const t of calState.schedule){ const e=Math.abs(tap-t); if(e<be){be=e;best=t} } if(best!==null&&be<.25) deltas.push((tap-best)*1000) } if(deltas.length<6){ alert('Kalibrasi kurang data. Ulangi.'); return } deltas.sort((a,b)=>a-b); const median=deltas[Math.floor(deltas.length/2)]; latencyInput.value=String(Math.round(median/5)*5) }
+  function finishCalibration(){ if(!calState.running) return; calState.running=false; const deltas=[]; for(const tap of calState.tapTimes){ let best=null,be=1e9; for(const t of calState.schedule){ const e=Math.abs(tap-t); if(e<be){be=e;best=t} } if(best!==null&&be<.25) deltas.append((tap-best)*1000) } if(deltas.length<6){ alert('Kalibrasi kurang data. Ulangi.'); return } deltas.sort((a,b)=>a-b); const median=deltas[Math.floor(deltas.length/2)]; latencyInput.value=String(Math.round(median/5)*5) }
 
   // ===== Chart IO =====
-  exportBtn.addEventListener('click',()=>{ const data={version:'v6-full',notes,meta:{first:firstNoteTime}}; const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='chart.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1500) });
+  exportBtn.addEventListener('click',()=>{ const data={version:'v6.0.3',notes,meta:{first:firstNoteTime}}; const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='chart.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1500) });
   importInput.addEventListener('change',async()=>{ const f=importInput.files?.[0]; if(!f)return; try{ const txt=await f.text(); const data=JSON.parse(txt); notes=(data.notes||[]).map(n=>({t:n.t,lane:n.lane,end:n.end})).sort((a,b)=>a.t-b.t); firstNoteTime=notes.length?notes[0].t:0; playBtn.disabled=notes.length===0; jumpFirstBtn.disabled=notes.length===0; setHUD(); }catch{ alert('File chart tidak valid') } });
 
   // ===== Generators =====
@@ -248,8 +245,17 @@ try{
   }
   function toMono(buf){ const chs=buf.numberOfChannels,len=buf.length,out=new Float32Array(len); for(let c=0;c<chs;c++){ const d=buf.getChannelData(c); for(let i=0;i<len;i++) out[i]+=d[i]/chs } return out }
 
-  // ===== Boot =====
-  resize(); setStatus(false); setAnalyzeEnabled(false); draw(0); setHUD();
+  // ===== HUD =====
+  function setHUD(){ const st=audioCtx?audioCtx.state:'-'; const dur=buffer?buffer.duration.toFixed(2):'-'; const n=notes.length; const f=notes[0]?notes[0].t.toFixed(2):'-'; hud.hidden=false; hud.textContent=`AC:${st}  dur:${dur}s  notes:${n}  first:${f}s`; }
+
+  // ===== Render boot =====
+  function draw(t){ const W=canvas.width,H=canvas.height,LANES=4,JUDGE=.85; const laneW=W/LANES, judgeY=H*JUDGE; const pxPerSec=350*speedMultiplier, windowAfter=12.0; const colors=['#3b82f6','#22c55e','#eab308','#ef4444'], glow=['#93c5fd','#86efac','#fde68a','#fca5a5']; const ctx=canvas.getContext('2d'); ctx.fillStyle='#0a0a0a'; ctx.fillRect(0,0,W,H); for(let i=0;i<LANES;i++){ ctx.fillStyle=colors[i]+'22'; ctx.fillRect(i*laneW,0,laneW,H) } ctx.strokeStyle='#ffffff66'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(0,judgeY); ctx.lineTo(W,judgeY); ctx.stroke(); ctx.shadowBlur=0; for(const n of notes){ const dt=n.t-t; if(dt>windowAfter) break; const y=judgeY-dt*pxPerSec; const x=(n.lane+.5)*laneW; const w=laneW*.7,h=20; const near=Math.abs(y-judgeY)<24; ctx.shadowBlur=near?16:0; ctx.shadowColor=glow[n.lane]; if(n.end!=null){ const endY=judgeY-(n.end-t)*pxPerSec; ctx.fillStyle=colors[n.lane]+'AA'; ctx.fillRect(x-w*.35,Math.min(y,endY),w*.7,Math.abs(endY-y)) } ctx.fillStyle=colors[n.lane]; ctx.fillRect(x-w/2,y-h/2,w,h) } }
+  function loop(){}
+
+  // init sizes & draw once
+  window.dispatchEvent(new Event('resize'));
+  draw(0);
+  setHUD();
 
 }catch(err){ console.error('Boot error',err); }
 })();
