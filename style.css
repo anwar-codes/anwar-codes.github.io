@@ -3,11 +3,9 @@
 #topbar h1{font-size:16px;margin:0}
 #statusDot{margin-left:8px}
 .st-ok{color:#22c55e}.st-bad{color:#ef4444}
-#panel{background:#0f172a}
-#panel[open] .inner{padding:8px 12px}
-#panel > summary{list-style:none; cursor:pointer; user-select:none; padding:10px 12px; background:#1f2937; color:#fff; position:sticky; top:44px; z-index:99; border-bottom:1px solid #0b0e14}
-#panel > summary::-webkit-details-marker{display:none}
-#panel > summary:focus{outline:none; box-shadow:0 0 0 3px #2563eb66}
+#panel{background:#0f172a;overflow:hidden;transition:max-height .2s ease,padding .2s ease}
+#panel .inner{padding:8px 12px}
+#panel.collapsed{max-height:0;padding-top:0;padding-bottom:0}
 .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .controls button,.controls .file span{background:#1f2937;border:none;color:#fff;padding:8px 12px;border-radius:8px;cursor:pointer}
 .controls button:disabled,.controls .file input:disabled + span{opacity:.5;cursor:not-allowed}

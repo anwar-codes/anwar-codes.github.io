@@ -4,6 +4,17 @@ try{
   const $=s=>document.querySelector(s);
   const on=(el,ev,fn,opt)=>el&&el.addEventListener(ev,fn,opt);
 
+  const panel=$('#panel'), fab=$('#fabToggle');
+  function setOpen(open){ panel.classList.toggle('collapsed', !open); panel.setAttribute('aria-expanded', open?'true':'false'); try{localStorage.setItem('panelOpen', open?'1':'0')}catch{}; window.dispatchEvent(new Event('resize')); }
+  try{ setOpen(localStorage.getItem('panelOpen')==='1'); }catch{ setOpen(false); }
+  on(fab,'click',()=> setOpen(panel.classList.contains('collapsed')) );
+
+(function(){
+'use strict';
+try{
+  const $=s=>document.querySelector(s);
+  const on=(el,ev,fn,opt)=>el&&el.addEventListener(ev,fn,opt);
+
   // ===== Native <details> toggle + FAB force toggle =====
   const details=$('#panel'), summary=$('#panelSummary'), fab=$('#fabToggle');
   function setOpen(open){ open?details.setAttribute('open',''):details.removeAttribute('open'); summary?.setAttribute('aria-expanded',open?'true':'false'); try{ localStorage.setItem('panelOpen', open?'1':'0'); }catch{}; window.dispatchEvent(new Event('resize')); }
@@ -42,7 +53,7 @@ try{
   function setStatus(ok){ statusDot.classList.toggle('st-ok',ok); statusDot.classList.toggle('st-bad',!ok); }
   function setAnalyzeEnabled(v){ analyzeBtn.disabled=!v; analyzeBtn.classList.toggle('pulse',!!v); }
   function resize(){
-    const lanesH=56+8*2; const topbarH=document.getElementById('topbar').offsetHeight; const panelH=details.hasAttribute('open')? details.scrollHeight : 0;
+    const lanesH=56+8*2; const topbarH=document.getElementById('topbar').offsetHeight; const panelH = (document.querySelector('#panel')?.classList.contains('collapsed')?0:document.querySelector('#panel').scrollHeight);
     const avail=Math.max(160, window.innerHeight - (topbarH+panelH+lanesH)); canvas.width=window.innerWidth; canvas.height=Math.round(avail); W=canvas.width; H=canvas.height; draw(0);
   }
   on(window,'resize',resize);
@@ -218,4 +229,18 @@ try{
   window.dispatchEvent(new Event('resize')); draw(0); setHUD();
 
 }catch(err){ console.error('Boot error',err); }
+})();
+  // Fallback: if updateFileState not present, add a simple one
+  if (typeof updateFileState!=='function'){
+    const fileInput=$('#fileInput'), fileNameEl=$('#fileName');
+    function updateFileState(){
+      const f=fileInput?.files&&fileInput.files[0]; if(fileNameEl) fileNameEl.textContent = f? ' — ' + (f.name||'file'):'';
+      const btn=document.querySelector('#analyzeBtn'); if(btn) btn.disabled = !f;
+    }
+    ['change','input','blur'].forEach(ev=> on(fileInput,ev,()=>setTimeout(updateFileState,0), {passive:true}));
+  }
+
+  // Kick initial layout
+  window.dispatchEvent(new Event('resize'));
+}catch(e){ console.error(e); }
 })();

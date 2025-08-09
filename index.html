@@ -3,25 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-  <title>Rhythm Hero Lite</title>
-  <link rel="manifest" href="manifest.json?v=605">
-  <meta name="theme-color" content="#0b0e14">
-  <link rel="stylesheet" href="style.css?v=605">
+  <title>Rhythm Hero Lite (No-SW)</title>
+  <link rel="stylesheet" href="style.css?v=606">
 </head>
 <body>
   <header id="topbar" role="banner">
     <h1>Rhythm Hero Lite <small id="statusDot" class="st-bad">●</small><small id="fileName"></small></h1>
   </header>
 
-  <details id="panel" role="region" aria-label="Panel Pengaturan">
-    <summary id="panelSummary" role="button" aria-controls="panel" aria-expanded="false">☰ Pengaturan</summary>
+  <section id="panel" class="collapsed" aria-expanded="false">
     <div class="inner">
       <div class="controls">
         <label class="file">
           <input type="file" id="fileInput" accept=".mp3,.wav,.ogg,audio/mpeg,audio/*">
           <span>Unggah Lagu (MP3/WAV/OGG)</span>
         </label>
-        <button id="analyzeBtn" disabled onclick="window.__analyze && window.__analyze()">Analisa & Buat Not</button>
+        <button id="analyzeBtn" disabled>Analisa & Buat Not</button>
         <button id="playBtn" disabled>Mainkan</button>
         <button id="pauseBtn" disabled>Jeda</button>
         <button id="restartBtn" disabled>Ulang</button>
@@ -83,7 +80,7 @@
         </label>
       </div>
     </div>
-  </details>
+  </section>
 
   <canvas id="game"></canvas>
 
@@ -98,6 +95,6 @@
 
   <div id="hud" hidden></div>
 
-  <script src="main.js?v=605" defer></script>
+  <script src="main.js?v=606" defer></script>
 </body>
 </html>
