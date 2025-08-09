@@ -4,24 +4,6 @@ try{
   const $=s=>document.querySelector(s);
   const on=(el,ev,fn,opt)=>el&&el.addEventListener(ev,fn,opt);
 
-  const panel=$('#panel'), fab=$('#fabToggle');
-  function setOpen(open){ panel.classList.toggle('collapsed', !open); panel.setAttribute('aria-expanded', open?'true':'false'); try{localStorage.setItem('panelOpen', open?'1':'0')}catch{}; window.dispatchEvent(new Event('resize')); }
-  try{ setOpen(localStorage.getItem('panelOpen')==='1'); }catch{ setOpen(false); }
-  on(fab,'click',()=> setOpen(panel.classList.contains('collapsed')) );
-
-(function(){
-'use strict';
-try{
-  const $=s=>document.querySelector(s);
-  const on=(el,ev,fn,opt)=>el&&el.addEventListener(ev,fn,opt);
-
-  // ===== Native <details> toggle + FAB force toggle =====
-  const details=$('#panel'), summary=$('#panelSummary'), fab=$('#fabToggle');
-  function setOpen(open){ open?details.setAttribute('open',''):details.removeAttribute('open'); summary?.setAttribute('aria-expanded',open?'true':'false'); try{ localStorage.setItem('panelOpen', open?'1':'0'); }catch{}; window.dispatchEvent(new Event('resize')); }
-  try{ const saved=localStorage.getItem('panelOpen'); setOpen(saved==='1'); }catch{ setOpen(false); }
-  on(details,'toggle',()=>setOpen(details.hasAttribute('open')));
-  on(fab,'click',()=>setOpen(!details.hasAttribute('open')));
-
   // ===== Core game state =====
   let audioCtx, buffer=null, selectedFile=null, source=null, musicGain=null;
   let startCtxTime=0, startSongTime=0, pausedAt=0, gameState='idle';
@@ -53,15 +35,17 @@ try{
   function setStatus(ok){ statusDot.classList.toggle('st-ok',ok); statusDot.classList.toggle('st-bad',!ok); }
   function setAnalyzeEnabled(v){ analyzeBtn.disabled=!v; analyzeBtn.classList.toggle('pulse',!!v); }
   function resize(){
-    const lanesH=56+8*2; const topbarH=document.getElementById('topbar').offsetHeight; const panelH = (document.querySelector('#panel')?.classList.contains('collapsed')?0:document.querySelector('#panel').scrollHeight);
-    const avail=Math.max(160, window.innerHeight - (topbarH+panelH+lanesH)); canvas.width=window.innerWidth; canvas.height=Math.round(avail); W=canvas.width; H=canvas.height; draw(0);
+    const lanesH=56+8*2; const topbarH=document.getElementById('topbar').offsetHeight;
+    const pEl=document.getElementById('panel'); const panelH=pEl && !pEl.classList.contains('collapsed') ? pEl.scrollHeight : 0;
+    const avail=Math.max(160, window.innerHeight - (topbarH+panelH+lanesH));
+    canvas.width=window.innerWidth; canvas.height=Math.round(avail); W=canvas.width; H=canvas.height; draw(0);
   }
   on(window,'resize',resize);
+  function setHUD(){ const st=audioCtx?audioCtx.state:'-'; const dur=buffer?buffer.duration.toFixed(2):'-'; const n=notes.length; const f=notes[0]?notes[0].t.toFixed(2):'-'; hud.hidden=false; hud.textContent=`AC:${st}  dur:${dur}s  notes:${n}  first:${f}s`; }
 
   // ===== File + Analyze =====
   function updateFileState(){
     selectedFile = (fileInput && fileInput.files && fileInput.files[0]) ? fileInput.files[0] : null;
-    // iOS fallback: sometimes 'change' fires late; also .files may be empty but 'value' not empty
     if(!selectedFile && fileInput && fileInput.value){ try{ selectedFile = fileInput.files[0]; }catch{} }
     if (fileNameEl) fileNameEl.textContent = selectedFile ? ' — ' + (selectedFile.name||'file') : '';
     buffer=null; setStatus(!!selectedFile); setAnalyzeEnabled(!!selectedFile);
@@ -71,7 +55,37 @@ try{
   ;['change','input','blur'].forEach(ev=> on(fileInput,ev,()=>{ setTimeout(updateFileState,0); }, {passive:true}));
 
   function decodeArrayBuffer(ab){
+    ensureAudio();
+    return new Promise((resolve,reject)=>{
+      try{
+        const p=audioCtx.decodeAudioData(ab, b=>resolve(b), e=>reject(e));
+        if (p && typeof p.then==='function'){ p.then(resolve).catch(reject); }
+      }catch(err){ reject(err); }
+    });
+  }
 
+  async function onAnalyzeClick(){
+    if (!selectedFile){ alert('Pilih file lagu dulu.'); return; }
+    setAnalyzeEnabled(false);
+    try{
+      const ab = await selectedFile.arrayBuffer();
+      buffer = await decodeArrayBuffer(ab);
+      setStatus(true);
+      notes = (await generateChart(buffer, diffSel.value)).sort((a,b)=>a.t-b.t);
+      if (notes.length<1){ notes = (await generateChartEnergy(buffer, diffSel.value)).sort((a,b)=>a.t-b.t); }
+      firstNoteTime = notes.length? notes[0].t : 0;
+      if (notes.length===0){ alert('Tidak menemukan ketukan. Coba lagu lain atau ubah Kesulitan.'); }
+      playBtn.disabled = notes.length===0;
+      jumpFirstBtn.disabled = notes.length===0;
+      draw(0); setHUD();
+    }catch(err){
+      console.error(err); alert('Gagal membuka audio. Coba MP3/WAV/OGG atau update browser.');
+      setAnalyzeEnabled(true); setStatus(false);
+    }
+  }
+  ['click','pointerdown','touchstart'].forEach(ev=> on(analyzeBtn,ev,(e)=>{e.preventDefault();unlockAudio();onAnalyzeClick();},{passive:false}));
+
+  // ===== Playback =====
   speedInput.addEventListener('input', ()=>{ speedMultiplier=parseFloat(speedInput.value); speedVal.textContent=speedMultiplier.toFixed(2)+'x'; });
   jumpFirstBtn.addEventListener('click', ()=>{
     if (!buffer || !notes.length) return;
@@ -118,7 +132,6 @@ try{
 
   // ===== Render & loop =====
   const HIT_WINDOWS={perfect:.10,good:.18}; const particles=[];
-  function makeSpark(x,y,color){ const arr=[]; for(let i=0;i<14;i++){ const a=(Math.PI*2)*i/14+Math.random()*.2; const sp=22*(.5+Math.random()); arr.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:.18+Math.random()*.12,color}) } return {sparks:arr} }
   function drawParticles(dt){ for(let p=particles.length-1;p>=0;p--){ const sys=particles[p]; let alive=false; for(const s of sys.sparks){ s.life-=dt; if(s.life>0){ alive=true; s.vy+=80*dt; s.x+=s.vx*dt; s.y+=s.vy*dt; ctx.globalAlpha=Math.max(0,Math.min(1,s.life*5)); ctx.fillStyle=s.color; ctx.fillRect(s.x,s.y,2,2) } } if(!alive) particles.splice(p,1) } ctx.globalAlpha=1; }
   function draw(t){
     const laneW=W/LANES, judgeY=H*JUDGE;
@@ -158,8 +171,8 @@ try{
     if(idx===-1 || best>HIT_WINDOWS.good){ doMissSfx(); return }
     notes.splice(idx,1);
     doHitSfx();
-    const laneW=W/LANES; const x=(lane+.5)*laneW; const y=H*JUDGE; const color=['#93c5fd','#86efac','#fde68a','#fca5a5'][lane];
-    const sparks=[]; for(let i=0;i<14;i++){ const a=(Math.PI*2)*i/14+Math.random()*.2; const sp=22*(.5+Math.random()); sparks.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:.18+Math.random()*.12,color}) }
+    const laneW=W/LANES; const x=(lane+.5)*laneW; const y=H*JUDGE;
+    const sparks=[]; for(let i=0;i<14;i++){ const a=(Math.PI*2)*i/14+Math.random()*.2; const sp=22*(.5+Math.random()); sparks.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:.18+Math.random()*.12,color:'#fff'}) }
     particles.push({sparks});
     if(note.end!=null){ activeHolds.set(lane,{end:note.end,judged:true}); if(!holdsDown.get(lane)) holdsDown.set(lane,true) }
   }
@@ -173,7 +186,7 @@ try{
   // ===== Countdown =====
   const countdown={running:false,start:0};
   function countdownStart(){ countdown.running=true; countdown.start=performance.now()/1000; setTimeout(()=>{countdown.running=false},3200) }
-  function drawCountdown(){ const e=performance.now()/1000 - countdown.start; const r=Math.max(0,3-e); let text=r>2?'3':r>1?'2':r>0?'1':'GO!'; const W=canvas.width,H=canvas.height; const ctx=canvas.getContext('2d'); ctx.save(); ctx.fillStyle='#e5e7eb'; ctx.font='bold 48px system-ui,sans-serif'; ctx.textAlign='center'; ctx.fillText(text,W/2,H*.35); ctx.restore() }
+  function drawCountdown(){ const e=performance.now()/1000 - countdown.start; const r=Math.max(0,3-e); let text=r>2?'3':r>1?'2':r>0?'1':'GO!'; ctx.save(); ctx.fillStyle='#e5e7eb'; ctx.font='bold 48px system-ui,sans-serif'; ctx.textAlign='center'; ctx.fillText(text,W/2,H*.35); ctx.restore() }
 
   // ===== Calibration =====
   const calState={running:false,schedule:[],tapTimes:[],startTime:0};
@@ -185,10 +198,10 @@ try{
   function finishCalibration(){ if(!calState.running) return; calState.running=false; const deltas=[]; for(const tap of calState.tapTimes){ let best=null,be=1e9; for(const t of calState.schedule){ const e=Math.abs(tap-t); if(e<be){be=e;best=t} } if(best!==null&&be<.25) deltas.push((tap-best)*1000) } if(deltas.length<6){ alert('Kalibrasi kurang data. Ulangi.'); return } deltas.sort((a,b)=>a-b); const median=deltas[Math.floor(deltas.length/2)]; latencyInput.value=String(Math.round(median/5)*5) }
 
   // ===== Chart IO =====
-  exportBtn.addEventListener('click',()=>{ const data={version:'v6.0.4',notes,meta:{first:firstNoteTime}}; const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='chart.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1500) });
+  exportBtn.addEventListener('click',()=>{ const data={version:'v6.0.9',notes,meta:{first:firstNoteTime}}; const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='chart.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1500) });
   importInput.addEventListener('change',async()=>{ const f=importInput.files?.[0]; if(!f)return; try{ const txt=await f.text(); const data=JSON.parse(txt); notes=(data.notes||[]).map(n=>({t:n.t,lane:n.lane,end:n.end})).sort((a,b)=>a.t-b.t); firstNoteTime=notes.length?notes[0].t:0; playBtn.disabled=notes.length===0; jumpFirstBtn.disabled=notes.length===0; setHUD(); }catch{ alert('File chart tidak valid') } });
 
-  // ===== Generators (same as 6.0.3) =====
+  // ===== Generators =====
   async function generateChart(buf,difficulty='normal'){
     const sr=buf.sampleRate; const mono=toMono(buf);
     const hop=512, frame=1024;
@@ -220,27 +233,8 @@ try{
   }
   function toMono(buf){ const chs=buf.numberOfChannels,len=buf.length,out=new Float32Array(len); for(let c=0;c<chs;c++){ const d=buf.getChannelData(c); for(let i=0;i<len;i++) out[i]+=d[i]/chs } return out }
 
-  // ===== HUD =====
-  function setHUD(){ const st=audioCtx?audioCtx.state:'-'; const dur=buffer?buffer.duration.toFixed(2):'-'; const n=notes.length; const f=notes[0]?notes[0].t.toFixed(2):'-'; hud.hidden=false; hud.textContent=`AC:${st}  dur:${dur}s  notes:${n}  first:${f}s`; }
-
-  function draw(t){ const W=canvas.width,H=canvas.height,LANES=4,JUDGE=.85; const laneW=W/LANES, judgeY=H*JUDGE; const pxPerSec=350*speedMultiplier, windowAfter=12.0; const colors=['#3b82f6','#22c55e','#eab308','#ef4444'], glow=['#93c5fd','#86efac','#fde68a','#fca5a5']; const ctx=canvas.getContext('2d'); ctx.fillStyle='#0a0a0a'; ctx.fillRect(0,0,W,H); for(let i=0;i<LANES;i++){ ctx.fillStyle=colors[i]+'22'; ctx.fillRect(i*laneW,0,laneW,H) } ctx.strokeStyle='#ffffff66'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(0,judgeY); ctx.lineTo(W,judgeY); ctx.stroke(); ctx.shadowBlur=0; for(const n of notes){ const dt=n.t-t; if(dt>windowAfter) break; const y=judgeY-dt*pxPerSec; const x=(n.lane+.5)*laneW; const w=laneW*.7,h=20; const near=Math.abs(y-judgeY)<24; ctx.shadowBlur=near?16:0; ctx.shadowColor=glow[n.lane]; if(n.end!=null){ const endY=judgeY-(n.end-t)*pxPerSec; ctx.fillStyle=colors[n.lane]+'AA'; ctx.fillRect(x-w*.35,Math.min(y,endY),w*.7,Math.abs(endY-y)) } ctx.fillStyle=colors[n.lane]; ctx.fillRect(x-w/2,y-h/2,w,h) } }
-
-  // initial layout
-  window.dispatchEvent(new Event('resize')); draw(0); setHUD();
+  // init
+  resize(); setStatus(false); setAnalyzeEnabled(false); draw(0); setHUD();
 
 }catch(err){ console.error('Boot error',err); }
-})();
-  // Fallback: if updateFileState not present, add a simple one
-  if (typeof updateFileState!=='function'){
-    const fileInput=$('#fileInput'), fileNameEl=$('#fileName');
-    function updateFileState(){
-      const f=fileInput?.files&&fileInput.files[0]; if(fileNameEl) fileNameEl.textContent = f? ' — ' + (f.name||'file'):'';
-      const btn=document.querySelector('#analyzeBtn'); if(btn) btn.disabled = !f;
-    }
-    ['change','input','blur'].forEach(ev=> on(fileInput,ev,()=>setTimeout(updateFileState,0), {passive:true}));
-  }
-
-  // Kick initial layout
-  window.dispatchEvent(new Event('resize'));
-}catch(e){ console.error(e); }
 })();

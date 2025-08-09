@@ -3,18 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-  <title>Rhythm Hero Lite (No-SW)</title>
-  <link rel="stylesheet" href="style.css?v=606">
+  <title>Rhythm Hero Lite v6.0.9</title>
+  <link rel="stylesheet" href="style.css?v=609">
 </head>
 <body>
-<header id="topbar">
-  <button id="menuBtn" type="button" aria-controls="panel"
-          aria-expanded="false" onclick="RH_togglePanel()">☰</button>
-  <h1>Rhythm Hero Lite <small id="statusDot" class="st-bad">●</small><small id="fileName"></small></h1>
-</header>
+  <header id="topbar">
+    <button id="menuBtn" type="button" aria-controls="panel" aria-expanded="false" onclick="RH_togglePanel()">☰</button>
+    <h1>Rhythm Hero Lite <small id="statusDot" class="st-bad">●</small><small id="fileName"></small></h1>
+  </header>
 
-<section id="panel" class="collapsed" aria-expanded="false">
-  <div class="inner">
+  <section id="panel" class="collapsed" aria-expanded="false">
+    <div class="inner">
       <div class="controls">
         <label class="file">
           <input type="file" id="fileInput" accept=".mp3,.wav,.ogg,audio/mpeg,audio/*">
@@ -93,110 +92,52 @@
     <button data-lane="3">F</button>
   </div>
 
-  <button id="fabToggle" aria-label="Toggle panel">☰</button>
-
   <div id="hud" hidden></div>
 
-  <script src="main.js?v=606" defer></script>
-<script>
-(function(){
-  const $ = s => document.querySelector(s);
-  const panel = $('#panel');                                  // <details> atau <section>
-  const fab   = $('#fabToggle') || $('#togglePanel');          // pakai yang ada
+  <script src="main.js?v=609" defer></script>
 
-  function isOpen(){
-    if (!panel) return false;
-    return panel.tagName === 'DETAILS' ? panel.hasAttribute('open')
-                                       : !panel.classList.contains('collapsed');
-  }
-  function setOpen(open){
-    if (!panel) return;
-    if (panel.tagName === 'DETAILS'){
-      open ? panel.setAttribute('open','') : panel.removeAttribute('open');
-    } else {
+  <!-- Toggle panel & enable analyze (iOS-safe) -->
+  <script>
+    (function(){ ['#togglePanel','#fabToggle','details > summary'].forEach(sel=>{
+      document.querySelectorAll(sel).forEach(el=>el.remove());
+    }); })();
+
+    (function(){
+      var panel = document.getElementById('panel');
+      var open = (localStorage.getItem('panelOpen') === '1');
       panel.classList.toggle('collapsed', !open);
       panel.setAttribute('aria-expanded', open ? 'true' : 'false');
+      var btn = document.getElementById('menuBtn');
+      if(btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      window.addEventListener('load', ()=>window.dispatchEvent(new Event('resize')));
+    })();
+
+    function RH_togglePanel(){
+      var panel = document.getElementById('panel');
+      var btn = document.getElementById('menuBtn');
+      var willOpen = panel.classList.contains('collapsed');
+      panel.classList.toggle('collapsed', !willOpen);
+      panel.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+      if(btn) btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+      try{ localStorage.setItem('panelOpen', willOpen ? '1' : '0'); }catch(e){}
+      window.dispatchEvent(new Event('resize'));
     }
-    try{ localStorage.setItem('panelOpen', open ? '1' : '0'); }catch{}
-    window.dispatchEvent(new Event('resize'));
-  }
 
-  // Pulihkan state awal
-  try{ setOpen(localStorage.getItem('panelOpen') === '1'); }catch{ setOpen(false); }
-
-  // Klik FAB/ikon hamburger
-  ['click','pointerdown','touchstart'].forEach(ev=>{
-    fab && fab.addEventListener(ev, (e)=>{
-      e.preventDefault(); e.stopPropagation();
-      setOpen(!isOpen());
-    }, {passive:false});
-  });
-})();
-</script>
-<script>
-  // set state awal dari localStorage
-  (function(){
-    var panel = document.getElementById('panel');
-    var open = (localStorage.getItem('panelOpen') === '1');
-    panel.classList.toggle('collapsed', !open);
-    panel.setAttribute('aria-expanded', open ? 'true' : 'false');
-  })();
-
-  // fungsi global untuk onclick tombol
-  function RH_togglePanel(){
-    var panel = document.getElementById('panel');
-    var willOpen = panel.classList.contains('collapsed');
-    panel.classList.toggle('collapsed', !willOpen);
-    panel.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
-    try{ localStorage.setItem('panelOpen', willOpen ? '1' : '0'); }catch(e){}
-    // minta game resize kanvas
-    window.dispatchEvent(new Event('resize'));
-  }
-</script>
-  <script>
-/* ——— Bersihkan tombol lama kalau masih tersisa di DOM ——— */
-(function removeLegacyToggles(){
-  ['#togglePanel','#fabToggle','details > summary'].forEach(sel=>{
-    document.querySelectorAll(sel).forEach(el=>{ if(el.id!=='menuBtn') el.remove(); });
-  });
-})();
-
-/* ——— Inisialisasi state panel dari localStorage ——— */
-(function initPanel(){
-  var panel = document.getElementById('panel');
-  var open = (localStorage.getItem('panelOpen') === '1');
-  panel.classList.toggle('collapsed', !open);
-  panel.setAttribute('aria-expanded', open ? 'true' : 'false');
-  window.addEventListener('load', ()=>window.dispatchEvent(new Event('resize')));
-})();
-
-/* ——— Fungsi global dipanggil dari onclick di tombol ——— */
-function RH_togglePanel(){
-  var panel = document.getElementById('panel');
-  var willOpen = panel.classList.contains('collapsed');
-  panel.classList.toggle('collapsed', !willOpen);
-  panel.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
-  try{ localStorage.setItem('panelOpen', willOpen ? '1' : '0'); }catch(e){}
-  window.dispatchEvent(new Event('resize'));
-}
-
-/* ——— Aktifkan tombol “Analisa & Buat Not” begitu file dipilih ——— */
-(function hookAnalyze(){
-  var fileInput  = document.getElementById('fileInput');
-  var analyzeBtn = document.getElementById('analyzeBtn');
-  var fileNameEl = document.getElementById('fileName');
-
-  function updateFileState(){
-    var f = (fileInput && fileInput.files && fileInput.files[0]) ? fileInput.files[0] : null;
-    if (!f && fileInput && fileInput.value) { try { f = fileInput.files[0]; } catch(e){} }
-    analyzeBtn && (analyzeBtn.disabled = !f);
-    fileNameEl && (fileNameEl.textContent = f ? ' — ' + (f.name || 'file') : '');
-  }
-  ['change','input','blur'].forEach(ev=>{
-    fileInput && fileInput.addEventListener(ev, ()=>setTimeout(updateFileState,0), {passive:true});
-  });
-  updateFileState(); // refresh awal
-})();
-</script>
+    (function(){
+      var fileInput  = document.getElementById('fileInput');
+      var analyzeBtn = document.getElementById('analyzeBtn');
+      var fileNameEl = document.getElementById('fileName');
+      function updateFileState(){
+        var f = (fileInput && fileInput.files && fileInput.files[0]) ? fileInput.files[0] : null;
+        if (!f && fileInput && fileInput.value) { try { f = fileInput.files[0]; } catch(e){} }
+        if (analyzeBtn) analyzeBtn.disabled = !f;
+        if (fileNameEl) fileNameEl.textContent = f ? (' — ' + (f.name||'file')) : '';
+      }
+      ['change','input','blur'].forEach(ev=>{
+        if(fileInput) fileInput.addEventListener(ev, ()=>setTimeout(updateFileState,0), {passive:true});
+      });
+      updateFileState();
+    })();
+  </script>
 </body>
 </html>
