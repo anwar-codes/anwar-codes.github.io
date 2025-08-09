@@ -22,27 +22,16 @@
 /* Header jadi acuan posisi tombol */
 #topbar{
   position: sticky; top: 0; z-index: 1000;
-  display: flex; align-items: center; gap: 8px;
-  padding: 10px 12px 10px 60px;      /* ruang untuk tombol di kiri */
-  background: #121826;
+  display:flex; align-items:center; gap:8px;
+  padding:10px 12px 10px 60px;   /* ruang untuk tombol kiri */
+  background:#121826;
 }
-
-/* Tombol berada DI DALAM header, tidak “melayang keluar” */
-#fabToggle{
-  position: absolute;
-  left: 12px; top: 50%; transform: translateY(-50%);
-  z-index: 1001;
-  width: 44px; height: 44px;
-  border: 0; border-radius: 12px;
-  background: #1f2937; color: #fff; font-size: 18px;
-  display: grid; place-items: center;
-  box-shadow: 0 6px 18px rgba(0,0,0,.35);
-  pointer-events: auto;
+#menuBtn{
+  position:absolute; left:12px; top:50%; transform:translateY(-50%);
+  z-index:1001; width:44px; height:44px; border:0; border-radius:12px;
+  background:#1f2937; color:#fff; font-size:18px;
+  display:grid; place-items:center; box-shadow:0 6px 18px rgba(0,0,0,.35);
 }
-
-/* Panel <section> versi tertutup */
-#panel{ background:#0f172a; overflow: hidden; transition: max-height .2s, padding .2s; }
-#panel.collapsed{ max-height: 0; padding-top: 0; padding-bottom: 0; }
-
-/* Pastikan kanvas tak menutupi header/panel */
-#game{ position: relative; z-index: 1; }
+#panel{ background:#0f172a; overflow:hidden; transition:max-height .2s, padding .2s; }
+#panel.collapsed{ max-height:0; padding-top:0; padding-bottom:0; }
+#game{ position:relative; z-index:1; }  /* biar kanvas tidak menutupi header/panel */
