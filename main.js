@@ -4,16 +4,32 @@ try{
   const $=s=>document.querySelector(s);
   const on=(el,ev,fn,opt)=>el&&el.addEventListener(ev,fn,opt);
 
+  // Fallbacks
   window.__togglePanel = ()=>togglePanelClick();
   window.__analyze = ()=>onAnalyzeClick();
 
+  // ===== Toggle Panel: robust for iOS =====
+  const togglePanelBtn=$('#togglePanel'); const panel=$('#panel');
+  togglePanelBtn?.addEventListener('click', ()=>togglePanelClick());             // simple click
+  togglePanelBtn?.addEventListener('pointerdown', ()=>togglePanelClick(), {passive:true});
+  togglePanelBtn?.addEventListener('touchstart', ()=>togglePanelClick(), {passive:true});
+  togglePanelBtn?.addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); togglePanelClick(); }});
+  function togglePanelClick(){
+    const open = panel.classList.toggle('open');
+    panel.setAttribute('aria-expanded', open?'true':'false');
+    try{ localStorage.setItem('panelOpen', open?'1':'0'); }catch{}
+    window.dispatchEvent(new Event('resize')); // update canvas height
+  }
+  try{ if(localStorage.getItem('panelOpen')==='0') panel.classList.remove('open'); }catch{}
+
+  // ===== Core game state =====
   let audioCtx, buffer=null, selectedFile=null, source=null, musicGain=null;
   let startCtxTime=0, startSongTime=0, pausedAt=0, gameState='idle';
   let notes=[]; let firstNoteTime=0;
   let hitSfxBuf=null, missSfxBuf=null;
 
   const fileInput=$('#fileInput'), analyzeBtn=$('#analyzeBtn'), playBtn=$('#playBtn'), pauseBtn=$('#pauseBtn'), restartBtn=$('#restartBtn');
-  const statusDot=$('#statusDot'), fileNameEl=$('#fileName'), togglePanelBtn=$('#togglePanel'), panel=$('#panel');
+  const statusDot=$('#statusDot'), fileNameEl=$('#fileName');
   const canvas=$('#game'); const ctx=canvas.getContext('2d',{alpha:false}); const hud=$('#hud');
   const speedInput=$('#speedInput'), speedVal=$('#speedVal'), startSel=$('#startSel'), customStart=$('#customStart'), jumpFirstBtn=$('#jumpFirstBtn');
   const latencyInput=$('#latencyInput'), calibrateBtn=$('#calibrateBtn'), diffSel=$('#diffSel');
@@ -41,9 +57,6 @@ try{
     const avail=Math.max(160, window.innerHeight - (topbarH+panelH+lanesH)); canvas.width=window.innerWidth; canvas.height=Math.round(avail); W=canvas.width; H=canvas.height; draw(0);
   }
   on(window,'resize',resize);
-  function togglePanelClick(){ const open=panel.classList.toggle('open'); panel.setAttribute('aria-expanded',open?'true':'false'); try{localStorage.setItem('panelOpen',open?'1':'0')}catch{} resize(); }
-  ['click','pointerdown','touchstart'].forEach(ev=> on(togglePanelBtn,ev,(e)=>{e.preventDefault();togglePanelClick();},{passive:false}));
-  try{ if(localStorage.getItem('panelOpen')==='0') panel.classList.remove('open'); }catch{}
   function setHUD(){ const st=audioCtx?audioCtx.state:'-'; const dur=buffer?buffer.duration.toFixed(2):'-'; const n=notes.length; const f=notes[0]?notes[0].t.toFixed(2):'-'; hud.hidden=false; hud.textContent=`AC:${st}  dur:${dur}s  notes:${n}  first:${f}s`; }
 
   // ===== File + Analyze =====
@@ -124,12 +137,12 @@ try{
 
   // ===== Input =====
   const holdsDown=new Map(), activeHolds=new Map(), activeLanes=new Set();
-  function pressLane(l){ activeLanes.add(l); holdsDown.set(l,true); judgeHit({lane:l}); }
-  function releaseLane(l){ activeLanes.delete(l); holdsDown.set(l,false); judgeHoldRelease(l); }
   on(document.getElementById('touchLanes'),'touchstart',e=>{const t=e.target.closest('button[data-lane]'); if(!t)return; e.preventDefault(); pressLane(parseInt(t.dataset.lane,10))},{passive:false});
   on(document.getElementById('touchLanes'),'touchend',e=>{const t=e.target.closest('button[data-lane]'); if(!t)return; e.preventDefault(); releaseLane(parseInt(t.dataset.lane,10))},{passive:false});
   on(window,'keydown',e=>{const m={a:0,s:1,d:2,f:3}; const l=m[e.key?.toLowerCase()]; if(l!=null) pressLane(l)});
   on(window,'keyup',e=>{const m={a:0,s:1,d:2,f:3}; const l=m[e.key?.toLowerCase()]; if(l!=null) releaseLane(l)});
+  function pressLane(l){ activeLanes.add(l); holdsDown.set(l,true); judgeHit({lane:l}); }
+  function releaseLane(l){ activeLanes.delete(l); holdsDown.set(l,false); judgeHoldRelease(l); }
 
   // ===== Render & loop =====
   const HIT_WINDOWS={perfect:.10,good:.18}; const particles=[];
@@ -190,7 +203,7 @@ try{
   function countdownStart(){ countdown.running=true; countdown.start=performance.now()/1000; setTimeout(()=>{countdown.running=false},3200) }
   function drawCountdown(){ const e=performance.now()/1000 - countdown.start; const r=Math.max(0,3-e); let text=r>2?'3':r>1?'2':r>0?'1':'GO!'; ctx.save(); ctx.fillStyle='#e5e7eb'; ctx.font='bold 48px system-ui,sans-serif'; ctx.textAlign='center'; ctx.fillText(text,W/2,H*.35); ctx.restore() }
 
-  // ===== Calibration (simple) =====
+  // ===== Calibration =====
   const calState={running:false,schedule:[],tapTimes:[],startTime:0};
   calibrateBtn.addEventListener('click',()=>{ if(gameState==='playing'){ alert('Jeda/berhenti dulu sebelum kalibrasi.'); return } startCalibration() });
   function startCalibration(){ ensureAudio(); calState.running=true; calState.schedule=[]; calState.tapTimes=[]; const bpm=120, beat=60/bpm, N=16; const t0=audioCtx.currentTime+.6; calState.startTime=t0; for(let i=0;i<N;i++){ const t=t0+i*beat; calState.schedule.push(t); playClick(t,i%4===0) } setTimeout(()=>finishCalibration(),Math.ceil((N*beat+1.0)*1000)) }

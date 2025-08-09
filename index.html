@@ -9,8 +9,9 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header id="topbar">
-    <button id="togglePanel" aria-label="Toggle Panel" onclick="window.__togglePanel && window.__togglePanel()">☰</button>
+  <header id="topbar" role="banner">
+    <button id="togglePanel" aria-label="Buka/tutup panel" aria-controls="panel" aria-expanded="true"
+            onclick="window.__togglePanel && window.__togglePanel()">☰</button>
     <h1>Rhythm Hero Lite <small id="statusDot" class="st-bad">●</small><small id="fileName"></small></h1>
   </header>
 
