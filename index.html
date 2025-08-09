@@ -137,5 +137,25 @@
   });
 })();
 </script>
+<script>
+  // set state awal dari localStorage
+  (function(){
+    var panel = document.getElementById('panel');
+    var open = (localStorage.getItem('panelOpen') === '1');
+    panel.classList.toggle('collapsed', !open);
+    panel.setAttribute('aria-expanded', open ? 'true' : 'false');
+  })();
+
+  // fungsi global untuk onclick tombol
+  function RH_togglePanel(){
+    var panel = document.getElementById('panel');
+    var willOpen = panel.classList.contains('collapsed');
+    panel.classList.toggle('collapsed', !willOpen);
+    panel.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+    try{ localStorage.setItem('panelOpen', willOpen ? '1' : '0'); }catch(e){}
+    // minta game resize kanvas
+    window.dispatchEvent(new Event('resize'));
+  }
+</script>
 </body>
 </html>
