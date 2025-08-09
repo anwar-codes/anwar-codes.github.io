@@ -17,6 +17,12 @@ try{
   const latencyInput=$('#latencyInput'), calibrateBtn=$('#calibrateBtn'), diffSel=$('#diffSel');
   const hitSfxInput=$('#hitSfxInput'), missSfxInput=$('#missSfxInput'), hitVolEl=$('#hitVol'), missVolEl=$('#missVol');
   const exportBtn=$('#exportBtn'), importInput=$('#importInput');
+  const progressEl = document.getElementById('progress');
+  const progressLogEl = document.getElementById('progressLog');
+  function showProgress(msg){ if(progressEl){ progressEl.hidden=false; progressLogEl.textContent=msg; } }
+  function logProgress(line){ if(progressLogEl){ progressLogEl.textContent += '\n' + line; } }
+  function hideProgress(){ if(progressEl){ progressEl.hidden=true; } }
+
   const LANES=4, JUDGE=.85; let W=0,H=0, speedMultiplier=1.0;
 
   // ===== Audio helpers =====
@@ -67,19 +73,49 @@ try{
   async function onAnalyzeClick(){
     if (!selectedFile){ alert('Pilih file lagu dulu.'); return; }
     setAnalyzeEnabled(false);
+    showProgress('Membuka file…');
+
+    function fileToArrayBuffer(file){
+      if (file.arrayBuffer) return file.arrayBuffer();
+      return new Promise((res,rej)=>{
+        try{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=()=>rej(fr.error||new Error('FileReader gagal')); fr.readAsArrayBuffer(file); }
+        catch(e){ rej(e); }
+      });
+    }
+
     try{
-      const ab = await selectedFile.arrayBuffer();
-      buffer = await decodeArrayBuffer(ab);
+      const ab = await Promise.race([
+        fileToArrayBuffer(selectedFile),
+        new Promise((_r,rej)=>setTimeout(()=>rej(new Error('Timeout membaca file')), 15000))
+      ]);
+      logProgress('Decode audio…');
+      buffer = await Promise.race([
+        decodeArrayBuffer(ab),
+        new Promise((_r,rej)=>setTimeout(()=>rej(new Error('Timeout decode audio')), 20000))
+      ]);
       setStatus(true);
+      logProgress('Deteksi ketukan (mode 1)…');
       notes = (await generateChart(buffer, diffSel.value)).sort((a,b)=>a.t-b.t);
-      if (notes.length<1){ notes = (await generateChartEnergy(buffer, diffSel.value)).sort((a,b)=>a.t-b.t); }
+      if (notes.length<6){
+        logProgress('Sedikit hasil. Coba mode 2…');
+        const alt = (await generateChartEnergy(buffer, diffSel.value)).sort((a,b)=>a.t-b.t);
+        if (alt.length > notes.length) notes = alt;
+      }
       firstNoteTime = notes.length? notes[0].t : 0;
-      if (notes.length===0){ alert('Tidak menemukan ketukan. Coba lagu lain atau ubah Kesulitan.'); }
-      playBtn.disabled = notes.length===0;
-      jumpFirstBtn.disabled = notes.length===0;
+      hideProgress();
+      if (notes.length===0){
+        alert('Analisis selesai tapi tidak menemukan not. Kamu masih bisa memutar lagunya untuk cek audio.');
+        playBtn.disabled = false; // allow manual play
+        jumpFirstBtn.disabled = true;
+      } else {
+        playBtn.disabled = false;
+        jumpFirstBtn.disabled = false;
+      }
       draw(0); setHUD();
     }catch(err){
-      console.error(err); alert('Gagal membuka audio. Coba MP3/WAV/OGG atau update browser.');
+      console.error(err);
+      hideProgress();
+      alert('Gagal analisis: ' + (err && err.message ? err.message : err));
       setAnalyzeEnabled(true); setStatus(false);
     }
   }

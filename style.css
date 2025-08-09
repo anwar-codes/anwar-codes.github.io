@@ -34,3 +34,9 @@
 #hud{position:fixed;top:8px;right:10px;background:#000c;padding:6px 8px;border-radius:6px;font-size:12px;z-index:95;white-space:pre;max-width:70vw}
 
 :root{--lane0:#3b82f6;--lane1:#22c55e;--lane2:#eab308;--lane3:#ef4444}
+
+#progress{position:fixed;inset:0;background:rgba(0,0,0,.45);display:grid;place-items:center;z-index:2000}
+#progress[hidden]{display:none}
+#progress .box{min-width:260px;max-width:80vw;background:#111827;color:#e5e7eb;border-radius:12px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+#progress .title{font-weight:700;margin-bottom:8px}
+#progressLog{white-space:pre-line;font-size:14px;line-height:1.3}

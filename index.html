@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
   <title>Rhythm Hero Lite v6.0.9</title>
-  <link rel="stylesheet" href="style.css?v=609">
+  <link rel="stylesheet" href="style.css?v=610">
 </head>
 <body>
   <header id="topbar">
@@ -92,9 +92,17 @@
     <button data-lane="3">F</button>
   </div>
 
-  <div id="hud" hidden></div>
+  <div id="hud" hidden>
+</div>
 
-  <script src="main.js?v=609" defer></script>
+  <div id="progress" aria-live="polite" hidden>
+    <div class="box">
+      <div class="title">Menganalisis lagu…</div>
+      <div id="progressLog">Menunggu…</div>
+    </div>
+  </div>
+
+  <script src="main.js?v=610" defer></script>
 
   <!-- Toggle panel & enable analyze (iOS-safe) -->
   <script>
