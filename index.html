@@ -96,5 +96,40 @@
   <div id="hud" hidden></div>
 
   <script src="main.js?v=606" defer></script>
+<script>
+(function(){
+  const $ = s => document.querySelector(s);
+  const panel = $('#panel');                                  // <details> atau <section>
+  const fab   = $('#fabToggle') || $('#togglePanel');          // pakai yang ada
+
+  function isOpen(){
+    if (!panel) return false;
+    return panel.tagName === 'DETAILS' ? panel.hasAttribute('open')
+                                       : !panel.classList.contains('collapsed');
+  }
+  function setOpen(open){
+    if (!panel) return;
+    if (panel.tagName === 'DETAILS'){
+      open ? panel.setAttribute('open','') : panel.removeAttribute('open');
+    } else {
+      panel.classList.toggle('collapsed', !open);
+      panel.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    try{ localStorage.setItem('panelOpen', open ? '1' : '0'); }catch{}
+    window.dispatchEvent(new Event('resize'));
+  }
+
+  // Pulihkan state awal
+  try{ setOpen(localStorage.getItem('panelOpen') === '1'); }catch{ setOpen(false); }
+
+  // Klik FAB/ikon hamburger
+  ['click','pointerdown','touchstart'].forEach(ev=>{
+    fab && fab.addEventListener(ev, (e)=>{
+      e.preventDefault(); e.stopPropagation();
+      setOpen(!isOpen());
+    }, {passive:false});
+  });
+})();
+</script>
 </body>
 </html>
