@@ -153,5 +153,50 @@
     window.dispatchEvent(new Event('resize'));
   }
 </script>
+  <script>
+/* ——— Bersihkan tombol lama kalau masih tersisa di DOM ——— */
+(function removeLegacyToggles(){
+  ['#togglePanel','#fabToggle','details > summary'].forEach(sel=>{
+    document.querySelectorAll(sel).forEach(el=>{ if(el.id!=='menuBtn') el.remove(); });
+  });
+})();
+
+/* ——— Inisialisasi state panel dari localStorage ——— */
+(function initPanel(){
+  var panel = document.getElementById('panel');
+  var open = (localStorage.getItem('panelOpen') === '1');
+  panel.classList.toggle('collapsed', !open);
+  panel.setAttribute('aria-expanded', open ? 'true' : 'false');
+  window.addEventListener('load', ()=>window.dispatchEvent(new Event('resize')));
+})();
+
+/* ——— Fungsi global dipanggil dari onclick di tombol ——— */
+function RH_togglePanel(){
+  var panel = document.getElementById('panel');
+  var willOpen = panel.classList.contains('collapsed');
+  panel.classList.toggle('collapsed', !willOpen);
+  panel.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+  try{ localStorage.setItem('panelOpen', willOpen ? '1' : '0'); }catch(e){}
+  window.dispatchEvent(new Event('resize'));
+}
+
+/* ——— Aktifkan tombol “Analisa & Buat Not” begitu file dipilih ——— */
+(function hookAnalyze(){
+  var fileInput  = document.getElementById('fileInput');
+  var analyzeBtn = document.getElementById('analyzeBtn');
+  var fileNameEl = document.getElementById('fileName');
+
+  function updateFileState(){
+    var f = (fileInput && fileInput.files && fileInput.files[0]) ? fileInput.files[0] : null;
+    if (!f && fileInput && fileInput.value) { try { f = fileInput.files[0]; } catch(e){} }
+    analyzeBtn && (analyzeBtn.disabled = !f);
+    fileNameEl && (fileNameEl.textContent = f ? ' — ' + (f.name || 'file') : '');
+  }
+  ['change','input','blur'].forEach(ev=>{
+    fileInput && fileInput.addEventListener(ev, ()=>setTimeout(updateFileState,0), {passive:true});
+  });
+  updateFileState(); // refresh awal
+})();
+</script>
 </body>
 </html>
