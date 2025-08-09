@@ -4,21 +4,12 @@ try{
   const $=s=>document.querySelector(s);
   const on=(el,ev,fn,opt)=>el&&el.addEventListener(ev,fn,opt);
 
-  // ===== Native <details> toggle =====
-  const details=$('#panel'), summary=$('#panelSummary');
-  // Default CLOSED unless user previously opened
-  try{
-    const saved = localStorage.getItem('panelOpen');
-    if(saved==='1'){ details.setAttribute('open',''); summary.setAttribute('aria-expanded','true'); }
-    else { details.removeAttribute('open'); summary.setAttribute('aria-expanded','false'); }
-  }catch{}
-  on(details,'toggle',()=>{
-    const open = details.hasAttribute('open');
-    summary.setAttribute('aria-expanded', open?'true':'false');
-    try{ localStorage.setItem('panelOpen', open?'1':'0'); }catch{}
-    // trigger layout update for canvas
-    window.dispatchEvent(new Event('resize'));
-  });
+  // ===== Native <details> toggle + FAB force toggle =====
+  const details=$('#panel'), summary=$('#panelSummary'), fab=$('#fabToggle');
+  function setOpen(open){ open?details.setAttribute('open',''):details.removeAttribute('open'); summary?.setAttribute('aria-expanded',open?'true':'false'); try{ localStorage.setItem('panelOpen', open?'1':'0'); }catch{}; window.dispatchEvent(new Event('resize')); }
+  try{ const saved=localStorage.getItem('panelOpen'); setOpen(saved==='1'); }catch{ setOpen(false); }
+  on(details,'toggle',()=>setOpen(details.hasAttribute('open')));
+  on(fab,'click',()=>setOpen(!details.hasAttribute('open')));
 
   // ===== Core game state =====
   let audioCtx, buffer=null, selectedFile=null, source=null, musicGain=null;
@@ -207,13 +198,13 @@ try{
   function playClick(atTime,strong=false){ const o=audioCtx.createOscillator(),g=audioCtx.createGain(); o.type='square'; o.frequency.setValueAtTime(strong?1200:900,atTime); g.gain.setValueAtTime(0,atTime); g.gain.linearRampToValueAtTime(strong?.35:.25,atTime+.001); g.gain.exponentialRampToValueAtTime(.0001,atTime+.08); o.connect(g).connect(audioCtx.destination); o.start(atTime); o.stop(atTime+.1) }
   canvas.addEventListener('touchstart',()=>{ if(calState.running) calState.tapTimes.push(audioCtx.currentTime) },{passive:true});
   canvas.addEventListener('mousedown',()=>{ if(calState.running) calState.tapTimes.push(audioCtx.currentTime) });
-  function finishCalibration(){ if(!calState.running) return; calState.running=false; const deltas=[]; for(const tap of calState.tapTimes){ let best=null,be=1e9; for(const t of calState.schedule){ const e=Math.abs(tap-t); if(e<be){be=e;best=t} } if(best!==null&&be<.25) deltas.append((tap-best)*1000) } if(deltas.length<6){ alert('Kalibrasi kurang data. Ulangi.'); return } deltas.sort((a,b)=>a-b); const median=deltas[Math.floor(deltas.length/2)]; latencyInput.value=String(Math.round(median/5)*5) }
+  function finishCalibration(){ if(!calState.running) return; calState.running=false; const deltas=[]; for(const tap of calState.tapTimes){ let best=null,be=1e9; for(const t of calState.schedule){ const e=Math.abs(tap-t); if(e<be){be=e;best=t} } if(best!==null&&be<.25) deltas.push((tap-best)*1000) } if(deltas.length<6){ alert('Kalibrasi kurang data. Ulangi.'); return } deltas.sort((a,b)=>a-b); const median=deltas[Math.floor(deltas.length/2)]; latencyInput.value=String(Math.round(median/5)*5) }
 
   // ===== Chart IO =====
-  exportBtn.addEventListener('click',()=>{ const data={version:'v6.0.3',notes,meta:{first:firstNoteTime}}; const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='chart.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1500) });
+  exportBtn.addEventListener('click',()=>{ const data={version:'v6.0.4',notes,meta:{first:firstNoteTime}}; const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='chart.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1500) });
   importInput.addEventListener('change',async()=>{ const f=importInput.files?.[0]; if(!f)return; try{ const txt=await f.text(); const data=JSON.parse(txt); notes=(data.notes||[]).map(n=>({t:n.t,lane:n.lane,end:n.end})).sort((a,b)=>a.t-b.t); firstNoteTime=notes.length?notes[0].t:0; playBtn.disabled=notes.length===0; jumpFirstBtn.disabled=notes.length===0; setHUD(); }catch{ alert('File chart tidak valid') } });
 
-  // ===== Generators =====
+  // ===== Generators (same as 6.0.3) =====
   async function generateChart(buf,difficulty='normal'){
     const sr=buf.sampleRate; const mono=toMono(buf);
     const hop=512, frame=1024;
@@ -248,14 +239,10 @@ try{
   // ===== HUD =====
   function setHUD(){ const st=audioCtx?audioCtx.state:'-'; const dur=buffer?buffer.duration.toFixed(2):'-'; const n=notes.length; const f=notes[0]?notes[0].t.toFixed(2):'-'; hud.hidden=false; hud.textContent=`AC:${st}  dur:${dur}s  notes:${n}  first:${f}s`; }
 
-  // ===== Render boot =====
   function draw(t){ const W=canvas.width,H=canvas.height,LANES=4,JUDGE=.85; const laneW=W/LANES, judgeY=H*JUDGE; const pxPerSec=350*speedMultiplier, windowAfter=12.0; const colors=['#3b82f6','#22c55e','#eab308','#ef4444'], glow=['#93c5fd','#86efac','#fde68a','#fca5a5']; const ctx=canvas.getContext('2d'); ctx.fillStyle='#0a0a0a'; ctx.fillRect(0,0,W,H); for(let i=0;i<LANES;i++){ ctx.fillStyle=colors[i]+'22'; ctx.fillRect(i*laneW,0,laneW,H) } ctx.strokeStyle='#ffffff66'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(0,judgeY); ctx.lineTo(W,judgeY); ctx.stroke(); ctx.shadowBlur=0; for(const n of notes){ const dt=n.t-t; if(dt>windowAfter) break; const y=judgeY-dt*pxPerSec; const x=(n.lane+.5)*laneW; const w=laneW*.7,h=20; const near=Math.abs(y-judgeY)<24; ctx.shadowBlur=near?16:0; ctx.shadowColor=glow[n.lane]; if(n.end!=null){ const endY=judgeY-(n.end-t)*pxPerSec; ctx.fillStyle=colors[n.lane]+'AA'; ctx.fillRect(x-w*.35,Math.min(y,endY),w*.7,Math.abs(endY-y)) } ctx.fillStyle=colors[n.lane]; ctx.fillRect(x-w/2,y-h/2,w,h) } }
-  function loop(){}
 
-  // init sizes & draw once
-  window.dispatchEvent(new Event('resize'));
-  draw(0);
-  setHUD();
+  // initial layout
+  window.dispatchEvent(new Event('resize')); draw(0); setHUD();
 
 }catch(err){ console.error('Boot error',err); }
 })();

@@ -1,1 +1,8 @@
-const CACHE='rhythm-hero-lite-v6.0.3-full';const ASSETS=['./','./index.html','./style.css','./main.js','./manifest.json'];self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)))});self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k))))) });self.addEventListener('fetch',e=>{e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request))) });
+const CACHE='rhythm-hero-lite-v6.0.4-full';
+self.addEventListener('install',event=>{self.skipWaiting();});
+self.addEventListener('activate',event=>{event.waitUntil((async()=>{const keys=await caches.keys();await Promise.all(keys.map(k=>k!==CACHE&&caches.delete(k))); await clients.claim();})());});
+self.addEventListener('fetch',event=>{event.respondWith((async()=>{
+  const req=event.request; const url=new URL(req.url);
+  try{ const net=await fetch(req); const cache=await caches.open(CACHE); cache.put(req, net.clone()); return net; }
+  catch(e){ const cache=await caches.open(CACHE); const res=await cache.match(req); if(res) return res; throw e; }
+})());});
