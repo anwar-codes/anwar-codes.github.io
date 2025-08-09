@@ -1,4 +1,4 @@
-const CACHE='rhythm-hero-lite-v6.0.4-full';
+const CACHE='rhythm-hero-lite-v6.0.5-full';
 self.addEventListener('install',event=>{self.skipWaiting();});
 self.addEventListener('activate',event=>{event.waitUntil((async()=>{const keys=await caches.keys();await Promise.all(keys.map(k=>k!==CACHE&&caches.delete(k))); await clients.claim();})());});
 self.addEventListener('fetch',event=>{event.respondWith((async()=>{

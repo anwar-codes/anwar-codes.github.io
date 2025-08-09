@@ -1,7 +1,7 @@
 {
   "name": "Rhythm Hero Lite",
   "short_name": "RhythmHero",
-  "start_url": "./index.html?v=604",
+  "start_url": "./index.html?v=605",
   "display": "standalone",
   "background_color": "#0b0e14",
   "theme_color": "#0b0e14",

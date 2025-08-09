@@ -48,46 +48,19 @@ try{
   on(window,'resize',resize);
 
   // ===== File + Analyze =====
-  on(fileInput,'change',()=>{
-    selectedFile = fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
-    if (fileNameEl) fileNameEl.textContent = selectedFile ? ' — ' + selectedFile.name : '';
-    buffer=null; setStatus(false); setAnalyzeEnabled(!!selectedFile);
+  function updateFileState(){
+    selectedFile = (fileInput && fileInput.files && fileInput.files[0]) ? fileInput.files[0] : null;
+    // iOS fallback: sometimes 'change' fires late; also .files may be empty but 'value' not empty
+    if(!selectedFile && fileInput && fileInput.value){ try{ selectedFile = fileInput.files[0]; }catch{} }
+    if (fileNameEl) fileNameEl.textContent = selectedFile ? ' — ' + (selectedFile.name||'file') : '';
+    buffer=null; setStatus(!!selectedFile); setAnalyzeEnabled(!!selectedFile);
     playBtn.disabled = true; pauseBtn.disabled = true; restartBtn.disabled = true; jumpFirstBtn.disabled = true;
     notes=[]; draw(0); setHUD();
-  }, {passive:false});
+  }
+  ;['change','input','blur'].forEach(ev=> on(fileInput,ev,()=>{ setTimeout(updateFileState,0); }, {passive:true}));
 
   function decodeArrayBuffer(ab){
-    ensureAudio();
-    return new Promise((resolve,reject)=>{
-      try{
-        const p=audioCtx.decodeAudioData(ab, b=>resolve(b), e=>reject(e));
-        if (p && typeof p.then==='function'){ p.then(resolve).catch(reject); }
-      }catch(err){ reject(err); }
-    });
-  }
 
-  async function onAnalyzeClick(){
-    if (!selectedFile){ alert('Pilih file lagu dulu.'); return; }
-    setAnalyzeEnabled(false);
-    try{
-      const ab = await selectedFile.arrayBuffer();
-      buffer = await decodeArrayBuffer(ab);
-      setStatus(true);
-      notes = (await generateChart(buffer, diffSel.value)).sort((a,b)=>a.t-b.t);
-      if (notes.length<1){ notes = (await generateChartEnergy(buffer, diffSel.value)).sort((a,b)=>a.t-b.t); }
-      firstNoteTime = notes.length? notes[0].t : 0;
-      if (notes.length===0){ alert('Tidak menemukan ketukan. Coba lagu lain atau ubah Kesulitan.'); }
-      playBtn.disabled = notes.length===0;
-      jumpFirstBtn.disabled = notes.length===0;
-      draw(0); setHUD();
-    }catch(err){
-      console.error(err); alert('Gagal membuka audio. Coba MP3/WAV/OGG atau update browser.');
-      setAnalyzeEnabled(true); setStatus(false);
-    }
-  }
-  ['click','pointerdown','touchstart'].forEach(ev=> on(analyzeBtn,ev,(e)=>{e.preventDefault();unlockAudio();onAnalyzeClick();},{passive:false}));
-
-  // ===== Playback =====
   speedInput.addEventListener('input', ()=>{ speedMultiplier=parseFloat(speedInput.value); speedVal.textContent=speedMultiplier.toFixed(2)+'x'; });
   jumpFirstBtn.addEventListener('click', ()=>{
     if (!buffer || !notes.length) return;
