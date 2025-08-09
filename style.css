@@ -1,18 +1,19 @@
 *{box-sizing:border-box}body{margin:0;background:#0b0e14;color:#e6e6e6;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
-#topbar{display:flex;align-items:center;gap:8px;padding:8px 12px;background:#121826;position:sticky;top:0;z-index:20}
+#jsError{position:fixed;top:0;left:0;right:0;background:#ef4444;color:#fff;padding:8px 12px;z-index:1000}
+#topbar{display:flex;align-items:center;gap:8px;padding:8px 12px;background:#121826;position:sticky;top:0;z-index:50;pointer-events:auto}
 #topbar h1{font-size:16px;margin:0}
 #togglePanel{background:#1f2937;border:none;color:#fff;padding:6px 10px;border-radius:8px;font-size:18px}
 #statusDot{margin-left:8px}
 .st-ok{color:#22c55e}.st-bad{color:#ef4444}
-#panel{background:#0f172a;overflow:hidden;transition:max-height .25s ease;padding:8px 12px}
-#panel.open{max-height:400px}#panel:not(.open){max-height:0;padding-top:0;padding-bottom:0}
+#panel{background:#0f172a;overflow:hidden;transition:max-height .25s ease;padding:8px 12px;z-index:40;position:relative;pointer-events:auto}
+#panel.open{max-height:420px}#panel:not(.open){max-height:0;padding-top:0;padding-bottom:0}
 .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .controls button,.controls .file span{background:#1f2937;border:none;color:#fff;padding:8px 12px;border-radius:8px;cursor:pointer}
 .controls button:disabled,.controls .file input:disabled + span{opacity:.5;cursor:not-allowed}
 .controls .file{position:relative;overflow:hidden;display:inline-block}
 .controls .file input{position:absolute;inset:0;opacity:0;cursor:pointer}
 .controls .latency,.controls .speed{display:flex;gap:6px;align-items:center;background:#0b1220;padding:6px 10px;border-radius:8px}
-#game{display:block;width:100vw;background:#0a0a0a;touch-action:manipulation}
-#touchLanes{position:fixed;bottom:0;left:0;right:0;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:8px;background:#0b0e14;z-index:10}
+#game{display:block;width:100vw;background:#0a0a0a;touch-action:manipulation;pointer-events:auto}
+#touchLanes{position:fixed;bottom:0;left:0;right:0;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:8px;background:#0b0e14;z-index:30;pointer-events:auto}
 #touchLanes button{height:56px;border:none;border-radius:10px;background:#1f2937;color:#fff;font-size:18px}
 .pulse{animation:pulse 1s infinite}@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,.7)}70%{box-shadow:0 0 0 10px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
