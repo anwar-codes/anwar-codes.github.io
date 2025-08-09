@@ -19,21 +19,30 @@
 #touchLanes{position:fixed;bottom:0;left:0;right:0;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:8px;background:#0b0e14;z-index:80}
 #touchLanes button{height:56px;border:none;border-radius:10px;background:#1f2937;color:#fff;font-size:18px}
 #hud{position:fixed;top:8px;right:10px;background:#000c;padding:6px 8px;border-radius:6px;font-size:12px;z-index:95;white-space:pre;max-width:70vw}
-/*#fabToggle{position:fixed;left:10px;top:10px;z-index:120;border:none;border-radius:10px;width:40px;height:40px;background:#1f2937;color:#fff;font-size:18px;display:grid;place-items:center;box-shadow:0 4px 16px #0007}*/
-/* FAB: pastikan di atas segalanya & aman dari notch */
-#fabToggle{
-  position: fixed;
-  left: 10px;
-  top: calc(env(safe-area-inset-top, 0px) + 12px);
-  z-index: 9999;
-  width: 44px; height: 44px;
-  border: 0; border-radius: 12px;
-  background:#1f2937; color:#fff; font-size:18px;
-  display:grid; place-items:center;
-  box-shadow:0 6px 18px rgba(0,0,0,.35);
-  pointer-events:auto;
+/* Header jadi acuan posisi tombol */
+#topbar{
+  position: sticky; top: 0; z-index: 1000;
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px 10px 60px;      /* ruang untuk tombol di kiri */
+  background: #121826;
 }
 
-/* Panel <section id="panel"> default tertutup */
-#panel.collapsed{max-height:0; padding-top:0; padding-bottom:0; overflow:hidden;}
-:root{--lane0:#3b82f6;--lane1:#22c55e;--lane2:#eab308;--lane3:#ef4444}
+/* Tombol berada DI DALAM header, tidak “melayang keluar” */
+#fabToggle{
+  position: absolute;
+  left: 12px; top: 50%; transform: translateY(-50%);
+  z-index: 1001;
+  width: 44px; height: 44px;
+  border: 0; border-radius: 12px;
+  background: #1f2937; color: #fff; font-size: 18px;
+  display: grid; place-items: center;
+  box-shadow: 0 6px 18px rgba(0,0,0,.35);
+  pointer-events: auto;
+}
+
+/* Panel <section> versi tertutup */
+#panel{ background:#0f172a; overflow: hidden; transition: max-height .2s, padding .2s; }
+#panel.collapsed{ max-height: 0; padding-top: 0; padding-bottom: 0; }
+
+/* Pastikan kanvas tak menutupi header/panel */
+#game{ position: relative; z-index: 1; }
