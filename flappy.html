@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <title>Flappy Proto — HTML5</title>
+  <style>
+    :root { color-scheme: light dark; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: linear-gradient(180deg, #7ec8ff 0%, #cfefff 100%);
+      overflow: hidden; /* cegah scroll di mobile */
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    }
+    #wrap {
+      width: 100vw; height: 100vh;
+    }
+    canvas {
+      width: 100vw; height: 100vh; display: block;
+      touch-action: manipulation; /* kurangi delay tap */
+      image-rendering: optimizeSpeed;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .sr { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+  </style>
+</head>
+<body>
+  <div id="wrap" aria-label="Permainan mirip Flappy Bird, ketuk untuk melompat">
+    <canvas id="game" role="img" aria-label="Kanvas permainan"></canvas>
+    <div class="sr" aria-live="polite" id="sr-status">Tap untuk mulai</div>
+  </div>
+
+  <script>
+  (() => {
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
+    const sr = document.getElementById('sr-status');
+
+    // ---------- Responsive + HiDPI ----------
+    let DPR = Math.max(1, Math.min(3, window.devicePixelRatio || 1)); // clamp DPR agar stabil
+    let W = 0, H = 0;         // ukuran logis (px) setelah dibagi DPR
+    let lastT = 0, acc = 0;
+    let running = true;
+
+    function resize() {
+      DPR = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+      const cssW = window.innerWidth;
+      const cssH = window.innerHeight;
+      canvas.width = Math.floor(cssW * DPR);
+      canvas.height = Math.floor(cssH * DPR);
+      W = canvas.width / DPR;
+      H = canvas.height / DPR;
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.scale(DPR, DPR);
+      // Sesuaikan parameter permainan terhadap tinggi layar
+      tuneToScreen();
+    }
+    window.addEventListener('resize', resize);
+    window.addEventListener('orientationchange', resize);
+
+    // ---------- Audio SFX minimal (WebAudio) ----------
+    class SFX {
+      constructor(){
+        const AC = window.AudioContext || window.webkitAudioContext;
+        this.ctx = AC ? new AC() : null;
+        this.enabled = !!this.ctx;
+        this.unlocked = false;
+        this.muted = false;
+
+        const unlock = () => {
+          if (!this.enabled) return;
+          if (this.ctx.state === 'suspended') this.ctx.resume();
+          this.unlocked = true;
+          window.removeEventListener('pointerdown', unlock);
+          window.removeEventListener('keydown', unlock);
+        };
+        window.addEventListener('pointerdown', unlock, { once:true });
+        window.addEventListener('keydown', unlock, { once:true });
+      }
+      beep(type='sine', freq=800, dur=0.06, vol=0.08) {
+        if (!this.enabled || !this.unlocked || this.muted) return;
+        const now = this.ctx.currentTime;
+        const o = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        o.type = type; o.frequency.value = freq;
+        g.gain.setValueAtTime(vol, now);
+        g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+        o.connect(g).connect(this.ctx.destination);
+        o.start(now); o.stop(now + dur);
+      }
+      flap(){ this.beep('square', 1000, 0.05, 0.06); }
+      score(){ this.beep('triangle', 1400, 0.07, 0.05); }
+      hit(){ this.beep('sawtooth', 160, 0.18, 0.08); }
+    }
+    const sfx = new SFX();
+
+    // ---------- Game State ----------
+    const STATE = { READY:0, PLAY:1, PAUSE:2, OVER:3 };
+    let state = STATE.READY;
+
+    // Parameter yang diskalakan terhadap layar (diset di tuneToScreen)
+    let GRAV = 1600;         // px/s^2
+    let JUMP = 420;          // px/s
+    let PIPE_SPEED = 160;    // px/s
+    let PIPE_GAP = 180;      // px
+    let PIPE_W = 68;         // px
+    let PIPE_SPACING = 260;  // px antara pipa
+    let GROUND_H = 0;        // tinggi tanah
+    let BIRD_R = 16;         // radius burung
+
+    function tuneToScreen() {
+      // Skala relatif tinggi 640px sebagai baseline
+      const s = H / 640;
+      GRAV = 1800 * s;
+      JUMP = 460 * s;
+      PIPE_SPEED = Math.max(120, 180 * s);
+      PIPE_GAP = Math.max(130 * s, Math.min(240 * s, H * 0.30));
+      PIPE_W = Math.max(50, 70 * s);
+      PIPE_SPACING = Math.max(220 * s, 0.55 * W);
+      GROUND_H = Math.max(48 * s, 0.12 * H);
+      BIRD_R = Math.max(13 * s, Math.min(22 * s, H * 0.035));
+    }
+
+    // Entities
+    const bird = {
+      x: 0, y: 0, vy: 0, r: BIRD_R, rot: 0,
+      reset() {
+        this.x = Math.max(60, W * 0.28);
+        this.y = Math.max(120, H * 0.4);
+        this.vy = 0; this.rot = 0; this.r = BIRD_R;
+      }
+    };
+
+    let pipes = []; // {x, topH, passed}
+    let score = 0;
+    let best = 0;
+    try {
+      best = +localStorage.getItem('flappy_proto_best') || 0;
+    } catch(_) {}
+
+    function resetGame() {
+      score = 0; pipes = [];
+      spawnPipe(W + 100); // awal ada 1 pipa di depan
+      bird.reset();
+      state = STATE.READY;
+      sr.textContent = 'Tap untuk mulai. Tekan Space/↑/W untuk melompat.';
+    }
+
+    function startGame() {
+      if (state === STATE.READY || state === STATE.OVER) {
+        // kalau OVER -> start baru
+        if (state === STATE.OVER) resetGame();
+        state = STATE.PLAY;
+        sr.textContent = 'Bermain. Tekan P untuk jeda.';
+      }
+    }
+
+    function gameOver() {
+      state = STATE.OVER;
+      sfx.hit();
+      if (score > best) {
+        best = score;
+        try { localStorage.setItem('flappy_proto_best', String(best)); } catch(_) {}
+      }
+      sr.textContent = `Game over. Skor ${score}. Tap untuk main lagi.`;
+    }
+
+    function togglePause() {
+      if (state === STATE.PLAY) {
+        state = STATE.PAUSE; sr.textContent = 'Jeda. Tekan P atau tap untuk lanjut.';
+      } else if (state === STATE.PAUSE) {
+        state = STATE.PLAY; sr.textContent = 'Lanjut bermain.';
+      }
+    }
+
+    // Pipes
+    function spawnPipe(x) {
+      const minTop = Math.max(20, H * 0.08);
+      const maxTop = H - GROUND_H - PIPE_GAP - Math.max(20, H * 0.08);
+      const topH = minTop + Math.random() * (maxTop - minTop);
+      pipes.push({ x, topH, passed:false });
+    }
+
+    // ---------- Input ----------
+    function onPress(e) {
+      e && e.preventDefault && e.preventDefault();
+      if (state === STATE.READY) {
+        startGame();
+        // lakukan flap pertama agar responsif
+        bird.vy = -JUMP;
+        sfx.flap();
+      } else if (state === STATE.PLAY) {
+        bird.vy = -JUMP;
+        sfx.flap();
+      } else if (state === STATE.PAUSE) {
+        togglePause();
+      } else if (state === STATE.OVER) {
+        resetGame();
+        startGame();
+      }
+    }
+
+    window.addEventListener('pointerdown', onPress, { passive:false });
+    window.addEventListener('keydown', (e) => {
+      // Cegah scroll dengan Space/ArrowUp di browser
+      if (['Space','ArrowUp'].includes(e.code)) e.preventDefault();
+      const k = e.key.toLowerCase();
+      if (k === ' ' || k === 'arrowup' || k === 'w') onPress(e);
+      else if (k === 'p') togglePause();
+      else if (k === 'm') { sfx.muted = !sfx.muted; }
+      else if (k === 'r') { resetGame(); }
+    }, { passive:false });
+
+    // Auto-pause saat tab disembunyikan
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && state === STATE.PLAY) state = STATE.PAUSE;
+    });
+
+    // ---------- Loop ----------
+    function update(dt) {
+      // Bird physics
+      bird.vy += GRAV * dt;
+      bird.y  += bird.vy * dt;
+      // Rotasi untuk efek visual
+      bird.rot = Math.max(-0.5, Math.min(1.2, bird.vy / (JUMP * 1.2)));
+
+      // Boundaries
+      if (bird.y < bird.r) { bird.y = bird.r; bird.vy = 0; }
+      if (bird.y > H - GROUND_H - bird.r) {
+        bird.y = H - GROUND_H - bird.r;
+        gameOver();
+      }
+
+      // Pipes movement & spawn
+      if (pipes.length === 0) spawnPipe(W + 100);
+      const lastX = pipes[pipes.length - 1].x;
+      if (lastX < W - PIPE_SPACING) spawnPipe(W + 40);
+
+      for (let i = 0; i < pipes.length; i++) {
+        pipes[i].x -= PIPE_SPEED * dt;
+      }
+      // remove pipes yang keluar layar
+      while (pipes.length && pipes[0].x + PIPE_W < -10) pipes.shift();
+
+      // Scoring + collision
+      for (const p of pipes) {
+        const bx1 = bird.x - bird.r;
+        const bx2 = bird.x + bird.r;
+        const by1 = bird.y - bird.r;
+        const by2 = bird.y + bird.r;
+
+        const px1 = p.x, px2 = p.x + PIPE_W;
+        const gapY1 = p.topH;
+        const gapY2 = p.topH + PIPE_GAP;
+
+        // Sudah lewat pipa?
+        if (!p.passed && px2 < bird.x) {
+          p.passed = true; score++; sfx.score();
+        }
+
+        // Benturan: jika bird masuk area pipa secara horizontal
+        if (bx2 > px1 && bx1 < px2) {
+          // kena bagian atas
+          if (by1 < gapY1 || by2 > gapY2) {
+            gameOver(); break;
+          }
+        }
+      }
+    }
+
+    function drawBackground() {
+      // langit
+      const grd = ctx.createLinearGradient(0,0,0,H);
+      grd.addColorStop(0, '#7ec8ff');
+      grd.addColorStop(1, '#cfefff');
+      ctx.fillStyle = grd;
+      ctx.fillRect(0,0,W,H);
+
+      // awan sederhana (parallax)
+      const t = performance.now() * 0.00005;
+      ctx.globalAlpha = 0.6;
+      for (let i=0;i<3;i++){
+        const y = H*0.12 + i*H*0.08;
+        const x = (W - ((t*50 + i*120) % (W+200))) - 200;
+        drawCloud(x, y, 40 + i*15);
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    function drawCloud(x, y, r) {
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI*2);
+      ctx.arc(x+r*0.8, y-r*0.2, r*0.9, 0, Math.PI*2);
+      ctx.arc(x+r*1.6, y, r*0.8, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    function drawGround() {
+      // tanah
+      ctx.fillStyle = '#89c26b';
+      ctx.fillRect(0, H - GROUND_H, W, GROUND_H);
+      // garis-garis
+      ctx.fillStyle = '#71a957';
+      for (let i=0;i<W/18;i++){
+        ctx.fillRect((i*18 - (performance.now()*0.06)%18), H - GROUND_H + 8, 12, 4);
+      }
+    }
+
+    function drawPipes() {
+      for (const p of pipes) {
+        // pipa atas
+        ctx.fillStyle = '#52c234';
+        ctx.fillRect(p.x, 0, PIPE_W, p.topH);
+        // lip pipa
+        ctx.fillStyle = '#3aa62b';
+        ctx.fillRect(p.x - 2, p.topH - 18, PIPE_W + 4, 18);
+
+        // pipa bawah
+        const bottomY = p.topH + PIPE_GAP;
+        ctx.fillStyle = '#52c234';
+        ctx.fillRect(p.x, bottomY, PIPE_W, H - GROUND_H - bottomY);
+        // lip pipa
+        ctx.fillStyle = '#3aa62b';
+        ctx.fillRect(p.x - 2, bottomY, PIPE_W + 4, 18);
+      }
+    }
+
+    function drawBird() {
+      const { x, y, r } = bird;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(bird.rot);
+
+      // tubuh
+      ctx.fillStyle = '#ffd66b';
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI*2);
+      ctx.fill();
+
+      // sayap (flap kecil)
+      const wingT = performance.now() * 0.01;
+      const wingY = Math.sin(wingT) * (r*0.25);
+      ctx.fillStyle = '#ffb84c';
+      ctx.beginPath();
+      ctx.ellipse(-r*0.1, wingY, r*0.7, r*0.45, 0, 0, Math.PI*2);
+      ctx.fill();
+
+      // mata
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(r*0.35, -r*0.25, r*0.35, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = '#1a1a1a';
+      ctx.beginPath();
+      ctx.arc(r*0.45, -r*0.25, r*0.16, 0, Math.PI*2);
+      ctx.fill();
+
+      // paruh
+      ctx.fillStyle = '#ff7f50';
+      ctx.beginPath();
+      ctx.moveTo(r*0.2, r*0.1);
+      ctx.lineTo(r*0.95, r*0.2);
+      ctx.lineTo(r*0.2, r*0.3);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    function drawUI() {
+      // Score
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.fillRect(0, 0, W, 56);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `bold ${Math.max(24, H*0.04)}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`Score: ${score}  •  Best: ${best}`, W/2, 28);
+
+      // Tombol mute/pause (ikon sederhana)
+      // Mute
+      drawButtonIcon(12, 12, 28, () => {
+        sfx.muted = !sfx.muted;
+      }, () => {
+        // ikon speaker
+        ctx.save();
+        ctx.translate(26, 26);
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(-1, 0); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-1, -7); ctx.lineTo(7, -12); ctx.lineTo(7, 12); ctx.lineTo(-1, 7); ctx.closePath();
+        ctx.stroke();
+        if (sfx.muted) {
+          ctx.beginPath(); ctx.moveTo(-10, -10); ctx.lineTo(10, 10); ctx.moveTo(10, -10); ctx.lineTo(-10, 10); ctx.stroke();
+        }
+        ctx.restore();
+      });
+
+      // Pause
+      drawButtonIcon(W - 40, 12, 28, () => {
+        if (state === STATE.PLAY) togglePause();
+        else if (state === STATE.PAUSE) togglePause();
+      }, () => {
+        ctx.save();
+        ctx.translate(W - 26, 26);
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+        if (state === STATE.PLAY) {
+          // ikon pause
+          ctx.beginPath(); ctx.moveTo(-6, -10); ctx.lineTo(-6, 10); ctx.moveTo(6, -10); ctx.lineTo(6, 10); ctx.stroke();
+        } else {
+          // ikon play
+          ctx.beginPath(); ctx.moveTo(-6, -11); ctx.lineTo(11, 0); ctx.lineTo(-6, 11); ctx.closePath(); ctx.stroke();
+        }
+        ctx.restore();
+      });
+
+      // Overlay teks instruksi
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'alphabetic';
+      if (state === STATE.READY) {
+        drawBanner('Tap untuk Mulai', 'Space / ↑ / W untuk melompat');
+      } else if (state === STATE.PAUSE) {
+        drawBanner('Jeda', 'Tekan P atau tap untuk lanjut');
+      } else if (state === STATE.OVER) {
+        drawBanner('Game Over', 'Tap atau tekan R untuk main lagi');
+      }
+    }
+
+    // Tombol klik di kanvas (hit test sederhana, pointerdown global di-bind ke onPress; ini tambahan untuk ikon)
+    const buttons = [];
+    function drawButtonIcon(x, y, size, onClick, drawIcon) {
+      // gambar tombol
+      ctx.save();
+      ctx.globalAlpha = 0.25; ctx.fillStyle = '#000';
+      ctx.fillRect(x, y, size, size);
+      ctx.globalAlpha = 1; drawIcon();
+      ctx.restore();
+
+      // daftar area tombol agar bisa ditekan
+      buttons.push({ x, y, w:size, h:size, onClick });
+    }
+
+    canvas.addEventListener('pointerdown', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const cx = (e.clientX - rect.left);
+      const cy = (e.clientY - rect.top);
+      // cek klik tombol UI
+      for (const b of buttons) {
+        if (cx >= b.x && cx <= b.x + b.w && cy >= b.y && cy <= b.y + b.h) {
+          e.preventDefault();
+          b.onClick();
+          return; // jangan teruskan ke onPress global
+        }
+      }
+    }, { passive:false });
+
+    function drawBanner(title, subtitle) {
+      const pad = 16, bw = Math.min(W*0.8, 420), bh = 140;
+      const bx = (W - bw)/2, by = H*0.22;
+      ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(bx, by, bw, bh);
+      ctx.fillStyle = '#fff';
+      ctx.font = `bold ${Math.max(26, H*0.045)}px system-ui`;
+      ctx.fillText(title, W/2, by + pad + 34);
+      ctx.font = `500 ${Math.max(16, H*0.03)}px system-ui`;
+      ctx.fillText(subtitle, W/2, by + pad + 34 + 36);
+    }
+
+    function render() {
+      buttons.length = 0; // reset daftar tombol per frame
+      drawBackground();
+      drawPipes();
+      drawGround();
+      drawBird();
+      drawUI();
+    }
+
+    function loop(ts) {
+      if (!running) return;
+      const t = ts * 0.001;
+      const dt = Math.min(0.033, lastT ? (t - lastT) : 0.016);
+      lastT = t;
+
+      if (state === STATE.PLAY) update(dt);
+      render();
+      requestAnimationFrame(loop);
+    }
+
+    // ---------- Init ----------
+    resize();
+    bird.reset();
+    spawnPipe(W + 120);
+    sr.textContent = 'Tap untuk mulai. Tekan Space/↑/W untuk melompat.';
+
+    // Cegah context menu pada long-press
+    window.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    requestAnimationFrame(loop);
+  })();
+  </script>
+</body>
+</html>
